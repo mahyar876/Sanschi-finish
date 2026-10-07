@@ -22,13 +22,27 @@ cd web && npm install && npm run dev
 
 ## Deploy
 
-### فرانت (Vercel)
+### فرانت (Vercel) — صفحهٔ خانه همین `web/` است
 
-Root directory: **`web`**
+1. در [vercel.com](https://vercel.com) پروژه را از همین ریپو import کن.
+2. **Root Directory** را حتماً **`web`** بگذار (اگر خالی بماند، هوم Next اصلاً build نمی‌شود).
+3. Deploy بزن؛ آدرس موقت: `https://xxx.vercel.app` — مسیر `/` همان صفحهٔ خانهٔ جدید است.
+4. دامنهٔ `sanschi.ir` را در Vercel → Domains اضافه کن (DNS را به Vercel بده، نه به بک‌اند Render).
 
-متغیر اختیاری:
+**CLI (بعد از `npx vercel login` داخل پوشه `web`):**
 
-- `NEXT_PUBLIC_API_URL` = آدرس بک‌اند (مثلاً `https://xxx.onrender.com`)
+```bash
+cd web
+npx vercel --prod
+```
+
+یا از ریشهٔ ریپو: `npm run deploy:web`
+
+متغیر اختیاری (فقط وقتی API داری):
+
+- `NEXT_PUBLIC_API_URL` = آدرس بک‌اند
+
+**نکته:** اگر دامنه الان به بک‌اند Express وصل است، ممکن است خطای ۵۰۰ ببینی — آن سرو HTML قدیمی `frontend/` است، نه هوم Next.
 
 ### بک‌اند (Render / Railway)
 

@@ -1,0 +1,10 @@
+{
+  "name": "reserve-football",
+  "private": true,
+  "description": "فرانت Next.js داخل web — برای Vercel حتماً Root Directory = web",
+  "scripts": {
+    "dev:web": "npm run dev --prefix web",
+    "build:web": "npm run build --prefix web",
+    "deploy:web": "npm exec --prefix web -- vercel --prod"
+  }
+}
