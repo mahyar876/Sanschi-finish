@@ -3,7 +3,7 @@ import { PenaltyView } from '@/components/views/PenaltyView';
 
 export const metadata: Metadata = {
   title: 'چالش پنالتی',
-  robots: { index: false },
+  description: 'بازی پنالتی سانس‌چی — ۵ شوت، درجه سختی، و شانس کد تخفیف رزرو.',
 };
 
 export default function PenaltyPage() {

@@ -84,6 +84,25 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      <section className="penalty-promo" aria-labelledby="penalty-promo-title">
+        <p className="eyebrow">مینی‌گیم</p>
+        <h2 id="penalty-promo-title">
+          پنالتی بزن، <em>جایزه ببر!</em>
+        </h2>
+        <p>
+          با بازی پنالتی سانس‌چی مهارتت را نشان بده — ۵ شوت، سه درجه سختی، و
+          شانس دریافت کد تخفیف برای رزرو واقعی.
+        </p>
+        <div className="penalty-promo-actions">
+          <Button href="/penalty" variant="primary">
+            ⚽ شروع بازی پنالتی
+          </Button>
+          <Button href="/reserve" variant="secondary">
+            رزرو سانس
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }
