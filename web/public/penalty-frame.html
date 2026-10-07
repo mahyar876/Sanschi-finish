@@ -9,6 +9,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/penalty.css" />
+    <link rel="stylesheet" href="/penalty-polish.css" />
   </head>
   <body>
     <div class="game">
@@ -55,6 +56,9 @@
 
       <!-- FIELD -->
       <div class="field" id="field">
+        <div class="field-ambient" aria-hidden="true"></div>
+        <div class="field-flood" aria-hidden="true"></div>
+        <div class="penalty-spot" aria-hidden="true"></div>
         <!-- field lines -->
         <svg
           class="field-lines"
@@ -124,6 +128,10 @@
             <div class="keeper idle" id="keeper">
               <div class="keeper-head"></div>
               <div class="keeper-body"><div class="keeper-num">۱</div></div>
+              <div class="keeper-gloves" aria-hidden="true">
+                <div class="glove left"></div>
+                <div class="glove right"></div>
+              </div>
             </div>
           </div>
 

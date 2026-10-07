@@ -275,41 +275,65 @@ function shoot(z) {
    - کوچک‌تر میشه (perspective)
    - می‌چرخه
 ════════════════════════════════════════ */
+let ballAnimFrame = null;
+
 function animBall(z) {
   const gr = goalEl.getBoundingClientRect();
   const fr = fieldEl.getBoundingClientRect();
   const t = ZONE_POS[z];
 
-  /* مقصد نسبت به field */
   const destX = gr.left - fr.left + (gr.width * t.x) / 100;
   const destY = gr.top - fr.top + (gr.height * t.y) / 100;
-
-  /* موقعیت شروع: نقطه پنالتی (وسط پایین) */
   const startX = fr.width / 2;
   const startY = fr.height * 0.74;
-
   const dx = destX - startX;
-  /* bottom-based: */
   const startBot = fr.height - startY;
   const destBot = fr.height - destY;
 
-  /* مدت پرواز بر اساس قدرت (ثابت برای حالا) */
-  const dur = 0.5;
-  ballEl.style.setProperty('--ball-dur', dur + 's');
-  fieldEl.style.setProperty('--ball-dur', dur + 's');
+  const durMs = 640;
+  const spin = (Math.random() < 0.5 ? 1 : -1) * Math.floor(rand(420, 900));
+  const arcHeight = rand(22, 38);
 
-  /* یه کم spin برای واقعی‌تر شدن */
-  const spin = (Math.random() < 0.5 ? 1 : -1) * Math.floor(rand(300, 720));
+  fieldEl.classList.add('field-kick');
+  setTimeout(() => fieldEl.classList.remove('field-kick'), 480);
 
-  ballEl.classList.add('shoot');
-  ballEl.style.left = 'calc(50% + ' + dx + 'px)';
-  ballEl.style.bottom = destBot + 'px';
-  ballEl.style.transform = `translateX(-50%) scale(0.55) rotate(${spin}deg)`;
-  ballEl.style.width = '22px';
-  ballEl.style.height = '22px';
-
-  /* shadow محو میشه */
+  ballEl.classList.add('shoot', 'flight');
+  ballEl.style.width = '30px';
+  ballEl.style.height = '30px';
   shadowEl.classList.add('moving');
+
+  if (ballAnimFrame) cancelAnimationFrame(ballAnimFrame);
+  const t0 = performance.now();
+
+  function frame(now) {
+    const p = Math.min(1, (now - t0) / durMs);
+    const ease = 1 - Math.pow(1 - p, 2.6);
+    const arc = Math.sin(p * Math.PI) * arcHeight;
+    const currentDx = dx * ease;
+    const currentBot = startBot + (destBot - startBot) * ease + arc;
+    const scale = 1 - p * 0.48;
+    const rot = spin * ease;
+
+    ballEl.style.left = 'calc(50% + ' + currentDx + 'px)';
+    ballEl.style.bottom = currentBot + 'px';
+    ballEl.style.transform =
+      'translateX(-50%) scale(' + scale + ') rotate(' + rot + 'deg)';
+
+    const shadowScale = Math.max(0.35, 1 - p * 0.65);
+    shadowEl.style.left = 'calc(50% + ' + currentDx * 0.92 + 'px)';
+    shadowEl.style.bottom = startBot + (destBot - startBot) * ease * 0.85 + 'px';
+    shadowEl.style.transform =
+      'translateX(-50%) scale(' + shadowScale + ', 0.65)';
+    shadowEl.style.opacity = String(Math.max(0.15, 0.55 - p * 0.4));
+
+    if (p < 1) {
+      ballAnimFrame = requestAnimationFrame(frame);
+    } else {
+      ballAnimFrame = null;
+    }
+  }
+
+  ballAnimFrame = requestAnimationFrame(frame);
 }
 
 /* ════════════════════════════════════════
@@ -354,6 +378,8 @@ function applyResult(z, saved) {
   } else {
     goals++;
     goalEl.classList.add('flash');
+    fieldEl.classList.add('field-goal-shake');
+    setTimeout(() => fieldEl.classList.remove('field-goal-shake'), 380);
     setTimeout(() => goalEl.classList.remove('flash'), 500);
     const gl = {
       0: [
@@ -534,13 +560,21 @@ function showMsg(type, emoji, title, sub) {
 }
 
 function resetBall() {
-  ballEl.classList.remove('shoot');
+  if (ballAnimFrame) {
+    cancelAnimationFrame(ballAnimFrame);
+    ballAnimFrame = null;
+  }
+  ballEl.classList.remove('shoot', 'flight');
   ballEl.style.left = '50%';
-  ballEl.style.bottom = '24%';
+  ballEl.style.bottom = '22%';
   ballEl.style.transform = 'translateX(-50%)';
-  ballEl.style.width = '28px';
-  ballEl.style.height = '28px';
+  ballEl.style.width = '30px';
+  ballEl.style.height = '30px';
   shadowEl.classList.remove('moving');
+  shadowEl.style.left = '50%';
+  shadowEl.style.bottom = '21.5%';
+  shadowEl.style.transform = 'translateX(-50%)';
+  shadowEl.style.opacity = '';
   void ballEl.offsetWidth;
 }
 

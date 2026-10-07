@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/Button';
+import { Reveal } from '@/components/Reveal';
 import { VenueCard } from '@/components/VenueCard';
 import { VENUES } from '@/data/venues';
 
@@ -11,7 +12,7 @@ export default function HomePage() {
   return (
     <div className="page">
       <section className="hero-home">
-        <div>
+        <div className="hero-copy">
           <p className="eyebrow">رزرو آنلاین · چمن · فوتسال · والیبال</p>
           <h1>اماکن ورزشی را آنلاین رزرو کنید</h1>
           <p className="lead">
@@ -40,22 +41,29 @@ export default function HomePage() {
 
       <section className="section">
         <div className="features">
-          <div className="feature">
-            <h3>سانس شفاف</h3>
-            <p>قیمت و زمان هر سانس قبل از تأیید نمایش داده می‌شود.</p>
-          </div>
-          <div className="feature">
-            <h3>چند نوع مجموعه</h3>
-            <p>چمن فوتبال، سالن فوتسال، والیبال و سالن‌های چندمنظوره.</p>
-          </div>
-          <div className="feature">
-            <h3>مدیریت برای مالک</h3>
-            <p>صاحب مجموعه رزروها و گزارش درآمد را در پنل جداگانه می‌بیند.</p>
-          </div>
+          <Reveal delay={0} className="feature-reveal">
+            <div className="feature">
+              <h3>سانس شفاف</h3>
+              <p>قیمت و زمان هر سانس قبل از تأیید نمایش داده می‌شود.</p>
+            </div>
+          </Reveal>
+          <Reveal delay={80} className="feature-reveal">
+            <div className="feature">
+              <h3>چند نوع مجموعه</h3>
+              <p>چمن فوتبال، سالن فوتسال، والیبال و سالن‌های چندمنظوره.</p>
+            </div>
+          </Reveal>
+          <Reveal delay={160} className="feature-reveal">
+            <div className="feature">
+              <h3>مدیریت برای مالک</h3>
+              <p>صاحب مجموعه رزروها و گزارش درآمد را در پنل جداگانه می‌بیند.</p>
+            </div>
+          </Reveal>
         </div>
       </section>
 
       <section className="section">
+        <Reveal>
         <div className="section-head">
           <div>
             <h2>مجموعه‌های پیشنهادی</h2>
@@ -65,9 +73,10 @@ export default function HomePage() {
             همه زمین‌ها
           </Link>
         </div>
+        </Reveal>
         <div className="venue-grid">
-          {featured.map((v) => (
-            <VenueCard key={v.id} venue={v} />
+          {featured.map((v, i) => (
+            <VenueCard key={v.id} venue={v} stagger={i * 70} />
           ))}
         </div>
       </section>
@@ -78,13 +87,14 @@ export default function HomePage() {
             <h2>سایر سالن‌ها</h2>
           </div>
           <div className="venue-grid">
-            {also.map((v) => (
-              <VenueCard key={v.id} venue={v} />
+            {also.map((v, i) => (
+              <VenueCard key={v.id} venue={v} stagger={i * 70} />
             ))}
           </div>
         </section>
       )}
 
+      <Reveal>
       <section className="penalty-promo" aria-labelledby="penalty-promo-title">
         <p className="eyebrow">مینی‌گیم</p>
         <h2 id="penalty-promo-title">
@@ -103,6 +113,7 @@ export default function HomePage() {
           </Button>
         </div>
       </section>
+      </Reveal>
     </div>
   );
 }

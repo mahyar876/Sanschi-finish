@@ -69,6 +69,26 @@ img {
   gap: 1rem;
 }
 
+@media (min-width: 900px) {
+  .header-inner {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+  }
+
+  .logo {
+    justify-self: start;
+  }
+
+  .nav {
+    justify-self: center;
+  }
+
+  .header-actions {
+    justify-self: end;
+  }
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -129,7 +149,11 @@ img {
   font-weight: 600;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
   font-family: inherit;
 }
 
@@ -195,6 +219,61 @@ img {
   padding: 2rem 0 3rem;
 }
 
+.hero-copy {
+  animation: fadeUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-visual {
+  animation: fadeUp 0.9s 0.12s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-copy,
+  .hero-visual {
+    animation: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .feature:hover,
+  .venue-card:hover {
+    transform: none;
+  }
+}
+
+.venue-card-wrap,
+.feature-reveal {
+  height: 100%;
+}
+
 @media (min-width: 900px) {
   .hero-home {
     grid-template-columns: 1fr 1fr;
@@ -245,7 +324,7 @@ img {
 .section-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   gap: 1rem;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
@@ -280,6 +359,17 @@ img {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  height: 100%;
+  transition:
+    border-color 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.feature:hover {
+  border-color: rgba(38, 179, 106, 0.28);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
 }
 
 .feature h3 {
@@ -401,18 +491,33 @@ img {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: border-color 0.2s;
+  height: 100%;
+  transition:
+    border-color 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .venue-card:hover {
   border-color: rgba(38, 179, 106, 0.28);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  transform: translateY(-4px);
+}
+
+.venue-card-media img,
+.venue-card-img {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.venue-card:hover .venue-card-img {
+  transform: scale(1.04);
 }
 
 .venue-card-media {
   position: relative;
   aspect-ratio: 16/10;
   background: var(--surface);
+  overflow: hidden;
 }
 
 .venue-card-img {
@@ -486,9 +591,27 @@ img {
   margin-top: auto;
   padding-top: 1rem;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.price-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.price-row {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.35rem;
+}
+
+.venue-reserve-btn {
+  flex-shrink: 0;
+  min-width: 4.25rem;
 }
 
 .price-label,
@@ -525,13 +648,9 @@ img {
 
 @media (min-width: 768px) {
   .footer-inner {
-    grid-template-columns: 1.2fr 1fr auto;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(10rem, 13rem);
     align-items: start;
     gap: 2rem 2.5rem;
-  }
-
-  .footer-cta-block {
-    text-align: left;
   }
 }
 
@@ -571,8 +690,14 @@ img {
 .footer-cta-block {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 0.65rem;
+  width: 100%;
+}
+
+.footer-cta-block .btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .footer-cta-text {
@@ -600,6 +725,14 @@ img {
   border-radius: var(--radius);
   position: relative;
   overflow: hidden;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.penalty-promo:hover {
+  border-color: rgba(38, 179, 106, 0.35);
+  box-shadow: 0 0 40px rgba(38, 179, 106, 0.08);
 }
 
 .penalty-promo::before {

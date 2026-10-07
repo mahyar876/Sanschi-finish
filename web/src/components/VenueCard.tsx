@@ -1,13 +1,15 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Reveal } from '@/components/Reveal';
 import { CATEGORY_LABEL, type Venue } from '@/data/venues';
 import { priceFa } from '@/lib/format';
 
-type Props = { venue: Venue };
+type Props = { venue: Venue; stagger?: number };
 
-export function VenueCard({ venue }: Props) {
+export function VenueCard({ venue, stagger = 0 }: Props) {
   const reserveQuery = new URLSearchParams({ venue: venue.slug }).toString();
   return (
+    <Reveal delay={stagger} className="venue-card-wrap">
     <article className="venue-card">
       <div className="venue-card-media">
         <Image
@@ -32,17 +34,20 @@ export function VenueCard({ venue }: Props) {
           ))}
         </ul>
         <div className="venue-card-foot">
-          <div>
-            <span className="price-label">از</span>{' '}
-            <span className="price-val">{priceFa(venue.priceFrom)}</span>{' '}
-            <span className="price-unit">تومان</span>
+          <div className="price-block">
+            <p className="price-row">
+              <span className="price-label">از</span>
+              <span className="price-val">{priceFa(venue.priceFrom)}</span>
+              <span className="price-unit">تومان</span>
+            </p>
             <span className="avail">{venue.availSlots} سانس خالی</span>
           </div>
-          <Link href={`/reserve?${reserveQuery}`} className="btn btn-primary btn-sm">
+          <Link href={`/reserve?${reserveQuery}`} className="btn btn-primary btn-sm venue-reserve-btn">
             رزرو
           </Link>
         </div>
       </div>
     </article>
+    </Reveal>
   );
 }

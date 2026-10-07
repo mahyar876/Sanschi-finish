@@ -1,0 +1,279 @@
+/* ── Polish layer: stadium feel + smoother motion ── */
+
+.field {
+  perspective: 900px;
+  background: linear-gradient(180deg, #0a2812 0%, #062010 45%, #041408 100%);
+}
+
+.field::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 0%, rgba(255, 220, 120, 0.14), transparent 55%),
+    radial-gradient(ellipse 90% 60% at 50% 100%, rgba(0, 0, 0, 0.55), transparent 70%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.field-ambient {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.015) 0,
+    rgba(255, 255, 255, 0.015) 2px,
+    transparent 2px,
+    transparent 6px
+  );
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.field-flood {
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 38%;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 245, 200, 0.12), transparent 70%);
+  pointer-events: none;
+  z-index: 3;
+  animation: floodPulse 4s ease-in-out infinite;
+}
+
+@keyframes floodPulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.penalty-spot {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  width: 14px;
+  height: 14px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+  z-index: 12;
+  pointer-events: none;
+}
+
+.penalty-spot::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+}
+
+.field.field-kick {
+  animation: fieldKick 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes fieldKick {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.018);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.field.field-goal-shake {
+  animation: goalShake 0.35s ease;
+}
+
+@keyframes goalShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.goal {
+  width: min(68vw, 340px);
+  height: min(30vh, 150px);
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+  transition: transform 0.35s ease;
+}
+
+.goal-frame {
+  border-width: 4px;
+  box-shadow:
+    0 0 24px rgba(255, 255, 255, 0.15),
+    inset 0 -8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.ball {
+  width: 30px;
+  height: 30px;
+  background:
+    radial-gradient(circle at 30% 28%, #fff 0%, #eee 18%, transparent 19%),
+    radial-gradient(circle at 68% 35%, #222 0%, #222 12%, transparent 13%),
+    radial-gradient(circle at 42% 68%, #222 0%, #222 11%, transparent 12%),
+    radial-gradient(circle at 72% 72%, #222 0%, #222 10%, transparent 11%),
+    radial-gradient(circle at 22% 55%, #222 0%, #222 9%, transparent 10%),
+    linear-gradient(145deg, #fafafa, #bdbdbd 55%, #8a8a8a);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.55),
+    inset -2px -3px 6px rgba(0, 0, 0, 0.25);
+}
+
+.ball.flight {
+  transition: none;
+}
+
+.ball-trail {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 14;
+  opacity: 0;
+  filter: blur(2px);
+}
+
+.keeper {
+  width: 48px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+}
+
+.keeper-head {
+  width: 30px;
+  height: 30px;
+  box-shadow: inset -2px -2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.keeper-body {
+  width: 44px;
+  height: 32px;
+  background: linear-gradient(155deg, #fbbf24, #ea580c);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15);
+}
+
+.keeper-gloves {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 44px;
+  pointer-events: none;
+}
+
+.glove {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #d4d4d4);
+  border: 1px solid #bbb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sz:hover:not(.disabled) {
+  background: rgba(38, 179, 106, 0.16);
+  box-shadow: inset 0 0 20px rgba(38, 179, 106, 0.12);
+}
+
+.diff-screen {
+  animation: diffIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes diffIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.diff-card {
+  transform: translateY(0);
+  animation: cardIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.diff-card:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.diff-card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.diff-card:nth-child(3) {
+  animation-delay: 0.19s;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.diff-card:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+
+.msg-ov.show .msg-box {
+  animation: popIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.instr {
+  animation: instrPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes instrPulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-flood,
+  .field.field-kick,
+  .field.field-goal-shake,
+  .diff-screen,
+  .diff-card,
+  .instr {
+    animation: none !important;
+  }
+}
