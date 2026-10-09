@@ -9,7 +9,10 @@ export function getApiBase(): string {
 
 export function apiUrl(path: string): string {
   const base = getApiBase();
-  const p = path.startsWith('/') ? path : `/${path}`;
+  let p = path.startsWith('/') ? path : `/${path}`;
+  if (!p.startsWith('/api/')) {
+    p = `/api${p}`;
+  }
   return `${base}${p}`;
 }
 

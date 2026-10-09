@@ -16,6 +16,45 @@ const reservationSchema = new mongoose.Schema({
     default: 'pending',
   },
 
+  bookingStatus: {
+    type: String,
+    enum: [
+      'pending_payment',
+      'payment_failed',
+      'confirmed',
+      'cancelled_by_user',
+      'cancelled_by_owner',
+      'refund_pending',
+      'refunded',
+      'checked_in',
+      'completed',
+      'no_show',
+      'expired',
+    ],
+    default: 'pending_payment',
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['none', 'pending', 'successful', 'failed', 'unknown', 'refunded'],
+    default: 'pending',
+  },
+  lockExpiresAt: { type: Date, default: null },
+  basePrice: { type: Number, default: null },
+  discountAmount: { type: Number, default: 0 },
+  discountCode: { type: String, default: '' },
+  commissionAtBooking: { type: Number, default: null },
+  refundAmount: { type: Number, default: 0 },
+  refundReason: { type: String, default: '' },
+  refundCompletedAt: { type: Date, default: null },
+  cancelledBy: {
+    type: String,
+    enum: ['user', 'owner', 'system', 'admin', null],
+    default: null,
+  },
+  cancelReason: { type: String, default: '' },
+  checkedInAt: { type: Date, default: null },
+  completedAt: { type: Date, default: null },
+
   // ── کمیسیون سانس‌یار (snapshot لحظه‌ی تأیید پرداخت) ──
   // این دو فیلد فقط وقتی status به paid تغییر می‌کند پر می‌شوند و با
   // commissionAmount فعلیِ زمین (در آن لحظه) محاسبه می‌شوند. تغییر بعدیِ
@@ -65,6 +104,7 @@ const reservationSchema = new mongoose.Schema({
     // gatewayAmount: مبلغ دقیقی که به درگاه ارسال شد (برای verify لازم است).
     authority: { type: String, default: null, index: true },
     gatewayAmount: { type: Number, default: null },
+    refundId: { type: String, default: null },
   },
 
   createdAt: { type: Date, default: Date.now },

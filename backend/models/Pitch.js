@@ -20,6 +20,8 @@ const pitchSchema = new mongoose.Schema({
   size: { type: Number, enum: [5, 7, 11], required: true },
   price: { type: Number, required: true }, // قیمت پایه (نمایشی روی کارت)
   address: { type: String, required: true },
+  lat: { type: Number },
+  lng: { type: Number },
   desc: { type: String },
   tags: [String],
   color1: { type: String, default: '#0d3320' },
@@ -33,6 +35,12 @@ const pitchSchema = new mongoose.Schema({
   // این مبلغ هیچ‌وقت روی صفحات مشتری (reserve/payment) نمایش داده نمی‌شه؛
   // مشتری همیشه همون قیمت کامل سانس رو پرداخت می‌کنه.
   commissionAmount: { type: Number, default: 0, min: 0 },
+
+  /** تخفیف لحظه‌آخر برای پر شدن سانس‌های خالی (override اختیاری؛ null = پیش‌فرض پلتفرم) */
+  lastMinuteEnabled: { type: Boolean, default: true },
+  lastMinuteDiscount60: { type: Number, min: 0, max: 100, default: null },
+  lastMinuteDiscount30: { type: Number, min: 0, max: 100, default: null },
+  lastMinuteMaxPct: { type: Number, min: 0, max: 100, default: null },
 
   // ── صاحب زمین ──
   // اگه null باشه یعنی این زمین به هیچ حسابی متصل نیست (فقط ادمین مدیریتش می‌کنه)

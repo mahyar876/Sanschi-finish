@@ -97,6 +97,10 @@ function applyDiscount() {
     if (store[code] && !store[code].used && Date.now() < store[code].exp) {
       pct = store[code].pct;
       appliedDiscount = Math.round((orderData.amount * pct) / 100);
+      if (store[code].maxAmount != null && store[code].maxAmount > 0) {
+        appliedDiscount = Math.min(appliedDiscount, store[code].maxAmount);
+      }
+      appliedDiscount = Math.min(appliedDiscount, orderData.amount);
       found = true;
       store[code].used = true;
       localStorage.setItem('sanschi_discounts', JSON.stringify(store));

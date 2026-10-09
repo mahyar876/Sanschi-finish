@@ -1,15 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DashboardShell } from '@/components/DashboardShell';
+import { PageIntro, StatCard, StatGrid } from '@/components/dashboard/DashboardPageBlocks';
 import { apiFetch } from '@/lib/fetch-api';
+import { getDemoFinanceStats } from '@/lib/demo-dashboard';
+import { isDemoFrontend } from '@/lib/demo';
 import { priceFa } from '@/lib/format';
-
-const adminNav = [
-  { href: '/admin', label: 'مدیریت' },
-  { href: '/admin/finance', label: 'مالی کل' },
-  { href: '/settlement', label: 'تسویه‌ها' },
-];
 
 export function AdminFinanceView() {
   const [stats, setStats] = useState<{
@@ -17,45 +13,55 @@ export function AdminFinanceView() {
   }>({});
 
   useEffect(() => {
+    if (isDemoFrontend()) {
+      const s = getDemoFinanceStats();
+      setStats({
+        totals: {
+          gross: s.totalRevenue,
+          commission: Math.round(s.totalRevenue * 0.05),
+          net: Math.round(s.totalRevenue * 0.95),
+          count: s.paidCount,
+        },
+      });
+      return;
+    }
     void apiFetch<{ success: boolean; totals: typeof stats.totals }>(
       '/settlements/summary',
-    ).then((d) => {
-      if (d.success) setStats({ totals: d.totals });
-    });
+    )
+      .then((d) => {
+        if (d.success) setStats({ totals: d.totals });
+      })
+      .catch(() => {
+        const s = getDemoFinanceStats();
+        setStats({
+          totals: {
+            gross: s.totalRevenue,
+            commission: Math.round(s.totalRevenue * 0.05),
+            net: Math.round(s.totalRevenue * 0.95),
+            count: s.paidCount,
+          },
+        });
+      });
   }, []);
 
   const t = stats.totals;
 
   return (
-    <DashboardShell
-      title="داشبورد مالی"
-      subtitle="خلاصه تسویه‌ها و کارمزد پلتفرم"
-      nav={adminNav}
-      requireRole="admin"
-    >
-      <div className="stat-row">
-        <div className="stat-card">
-          <div className="label">تعداد تسویه</div>
-          <div className="value">{t?.count ?? 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">ناخالص</div>
-          <div className="value">{priceFa(t?.gross ?? 0)}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">کارمزد سانس‌چی</div>
-          <div className="value">{priceFa(t?.commission ?? 0)}</div>
-          <div className="hint">نمایش ساختار — مقدار فعلی معمولاً ۰</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">خالص مالکان</div>
-          <div className="value">{priceFa(t?.net ?? 0)}</div>
-        </div>
-      </div>
+    <>
+      <PageIntro title="داشبورد مالی" description="خلاصه تسویه‌ها و کارمزد پلتفرم" />
+      <StatGrid>
+        <StatCard label="تعداد تسویه" value={t?.count ?? 0} />
+        <StatCard label="ناخالص" value={priceFa(t?.gross ?? 0)} />
+        <StatCard
+          label="کارمزد سانس‌چی"
+          value={priceFa(t?.commission ?? 0)}
+          hint="نمایش ساختار"
+        />
+        <StatCard label="خالص مالکان" value={priceFa(t?.net ?? 0)} />
+      </StatGrid>
       <p className="notice">
-        برای جزئیات هر تسویه به بخش{' '}
-        <a href="/settlement">تسویه‌ها</a> بروید.
+        برای جزئیات هر تسویه به بخش <a href="/settlement">تسویه‌ها</a> بروید.
       </p>
-    </DashboardShell>
+    </>
   );
 }

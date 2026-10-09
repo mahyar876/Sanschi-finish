@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DashboardShell } from '@/components/DashboardShell';
+import {
+  ActionsPanel,
+  DataSection,
+  PageIntro,
+  StatCard,
+  StatGrid,
+} from '@/components/dashboard/DashboardPageBlocks';
 import { apiFetch } from '@/lib/fetch-api';
+import { getDemoFinanceStats, getDemoOwnerPitches } from '@/lib/demo-dashboard';
+import { getDemoReservations } from '@/lib/demo-reservations';
+import { isDemoFrontend } from '@/lib/demo';
 import { priceFa } from '@/lib/format';
-
-const ownerNav = [
-  { href: '/owner', label: 'رزروها' },
-  { href: '/finance', label: 'گزارش مالی' },
-  { href: '/settlement', label: 'تسویه' },
-];
 
 type Res = {
   _id: string;
@@ -25,21 +28,70 @@ export function FinanceView() {
   const [rows, setRows] = useState<Res[]>([]);
 
   useEffect(() => {
-    void apiFetch<{ success: boolean; pitches: typeof pitches }>('/owner/pitches').then((d) => {
-      if (d.success && d.pitches.length) {
-        setPitches(d.pitches);
-        setPitchId(d.pitches[0]._id);
-      }
-    });
+    if (isDemoFrontend()) {
+      const list = getDemoOwnerPitches().map((p) => ({
+        ...p,
+        commissionAmount: 45_000,
+      }));
+      setPitches(list);
+      setPitchId(list[0]?._id || '');
+      return;
+    }
+    void apiFetch<{ success: boolean; pitches: typeof pitches }>('/owner/pitches')
+      .then((d) => {
+        if (d.success && d.pitches.length) {
+          setPitches(d.pitches);
+          setPitchId(d.pitches[0]._id);
+        }
+      })
+      .catch(() => {
+        const list = getDemoOwnerPitches().map((p) => ({
+          ...p,
+          commissionAmount: 45_000,
+        }));
+        setPitches(list);
+        setPitchId(list[0]?._id || '');
+      });
   }, []);
 
   useEffect(() => {
     if (!pitchId) return;
+    if (isDemoFrontend()) {
+      setRows(
+        getDemoReservations()
+          .filter((r) => r.status === 'paid')
+          .map((r) => ({
+            _id: r._id,
+            amount: r.amount,
+            status: 'paid',
+            siteCommission: 45_000,
+            pitchAmount: Math.max(0, r.amount - 45_000),
+          })),
+      );
+      return;
+    }
     void apiFetch<{ success: boolean; reservations: Res[] }>(
       `/owner/pitches/${pitchId}/reservations`,
-    ).then((d) => {
-      if (d.success) setRows(d.reservations.filter((r) => r.status === 'paid'));
-    });
+    )
+      .then((d) => {
+        if (d.success) setRows(d.reservations.filter((r) => r.status === 'paid'));
+      })
+      .catch(() => {
+        const stats = getDemoFinanceStats();
+        if (stats.paidCount === 0) setRows([]);
+        else
+          setRows(
+            getDemoReservations()
+              .filter((r) => r.status === 'paid')
+              .map((r) => ({
+                _id: r._id,
+                amount: r.amount,
+                status: 'paid',
+                siteCommission: 45_000,
+                pitchAmount: Math.max(0, r.amount - 45_000),
+              })),
+          );
+      });
   }, [pitchId]);
 
   const pitch = pitches.find((p) => p._id === pitchId);
@@ -57,40 +109,33 @@ export function FinanceView() {
   }
 
   return (
-    <DashboardShell
-      title="گزارش مالی"
-      subtitle="درآمد، کارمزد پلتفرم (فعلاً معمولاً ۰) و سهم شما"
-      nav={ownerNav}
-    >
+    <>
+      <PageIntro
+        title="درآمد و گزارش مالی"
+        description="درآمد ناخالص، کمیسیون سانس‌چی، مبلغ قابل تسویه و جزئیات تراکنش‌ها."
+      />
       {pitches.length > 0 && (
-        <div className="field" style={{ maxWidth: 320 }}>
-          <label>مجموعه</label>
-          <select value={pitchId} onChange={(e) => setPitchId(e.target.value)}>
-            {pitches.map((p) => (
-              <option key={p._id} value={p._id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ActionsPanel>
+          <div className="field" style={{ maxWidth: 320 }}>
+            <label>مجموعه</label>
+            <select value={pitchId} onChange={(e) => setPitchId(e.target.value)}>
+              {pitches.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </ActionsPanel>
       )}
 
-      <div className="stat-row" style={{ marginTop: '1.25rem' }}>
-        <div className="stat-card">
-          <div className="label">دریافتی مشتری (ناخالص)</div>
-          <div className="value">{priceFa(gross)}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">کارمزد سانس‌چی</div>
-          <div className="value">{priceFa(commission)}</div>
-          <div className="hint">فعلاً در عمل ۰ — آماده برای فاز بعد</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">سهم شما (خالص)</div>
-          <div className="value">{priceFa(net)}</div>
-        </div>
-      </div>
+      <StatGrid>
+        <StatCard label="ناخالص" value={priceFa(gross)} />
+        <StatCard label="کارمزد سانس‌چی" value={priceFa(commission)} />
+        <StatCard label="سهم شما (خالص)" value={priceFa(net)} />
+      </StatGrid>
 
+      <DataSection title="جزئیات">
       <div className="data-table-wrap">
         <table className="data-table">
           <thead>
@@ -115,6 +160,7 @@ export function FinanceView() {
           </tbody>
         </table>
       </div>
-    </DashboardShell>
+      </DataSection>
+    </>
   );
 }

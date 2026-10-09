@@ -1,16 +1,12 @@
-import Image from 'next/image';
-import Link from 'next/link';
 import { Button } from '@/components/Button';
+import { VenueImage } from '@/components/VenueImage';
 import { Reveal } from '@/components/Reveal';
-import { VenueCard } from '@/components/VenueCard';
-import { VENUES } from '@/data/venues';
+import { HomeVenueSections } from '@/components/HomeVenueSections';
+import { HomeFlashDealsSection } from '@/components/HomeFlashDealsSection';
 
 export default function HomePage() {
-  const featured = VENUES.filter((v) => v.featured);
-  const also = VENUES.filter((v) => !v.featured).slice(0, 3);
-
   return (
-    <div className="page">
+    <div className="page page-home">
       <section className="hero-home">
         <div className="hero-copy">
           <p className="eyebrow">رزرو آنلاین · چمن · فوتسال · والیبال</p>
@@ -29,7 +25,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="hero-visual">
-          <Image
+          <VenueImage
             src="/venues/venue-grass-mellat.jpg"
             alt="رزرو چمن فوتبال آنلاین — سانس‌چی"
             fill
@@ -62,37 +58,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section">
-        <Reveal>
-        <div className="section-head">
-          <div>
-            <h2>مجموعه‌های پیشنهادی</h2>
-            <p>برای رزرو سریع از میان گزینه‌های پرتقاضا شروع کنید</p>
-          </div>
-          <Link href="/gallery" className="btn btn-ghost btn-sm">
-            همه زمین‌ها
-          </Link>
-        </div>
-        </Reveal>
-        <div className="venue-grid">
-          {featured.map((v, i) => (
-            <VenueCard key={v.id} venue={v} stagger={i * 70} />
-          ))}
-        </div>
-      </section>
-
-      {also.length > 0 && (
-        <section className="section">
-          <div className="section-head">
-            <h2>سایر سالن‌ها</h2>
-          </div>
-          <div className="venue-grid">
-            {also.map((v, i) => (
-              <VenueCard key={v.id} venue={v} stagger={i * 70} />
-            ))}
-          </div>
-        </section>
-      )}
+      <HomeFlashDealsSection />
+      <HomeVenueSections />
 
       <Reveal>
       <section className="penalty-promo" aria-labelledby="penalty-promo-title">

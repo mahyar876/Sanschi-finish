@@ -23,12 +23,17 @@ app.use(
 
 app.use(express.json({ limit: '8mb' }));
 
-// ── RATE LIMIT ──
+// ── RATE LIMIT (production only — dev/preview hit /api heavily via Next proxy) ──
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'درخواست‌های زیاد؛ لطفاً چند دقیقه بعد دوباره تلاش کنید' },
 });
-app.use('/api/', limiter);
+if (process.env.NODE_ENV === 'production') {
+  app.use('/api/', limiter);
+}
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -47,6 +52,10 @@ app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/owner', require('./routes/owner')); // ← پنل صاحب زمین
 app.use('/api/settlements', require('./settlements')); // ← تسویه مالی
 app.use('/api/payment', require('./routes/payment'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/discounts', require('./routes/discounts'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/owner-applications', require('./routes/ownerApplications'));
 
 // ── HEALTH ──
 app.get('/api/health', (req, res) => {
@@ -74,6 +83,23 @@ mongoose
     app.listen(PORT, () => {
       console.log(`Server running on ${PORT}`);
     });
+
+    const DailyAvailability = require('./models/DailyAvailability');
+    const { expireStaleForDaily } = require('./services/slotService');
+    const { runBookingLifecycle } = require('./services/lifecycleJob');
+    setInterval(async () => {
+      try {
+        const dailies = await DailyAvailability.find({
+          'slots.lockUntil': { $lte: new Date() },
+        }).limit(40);
+        for (const d of dailies) {
+          await expireStaleForDaily(d);
+        }
+        await runBookingLifecycle();
+      } catch (e) {
+        console.error('booking jobs:', e.message);
+      }
+    }, 60 * 1000);
   })
   .catch((err) => {
     console.log('Mongo error:', err);

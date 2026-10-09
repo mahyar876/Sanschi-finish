@@ -42,35 +42,28 @@ async function run() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ متصل به MongoDB:', mongoose.connection.name);
 
-    let user = await User.findOne({ email: ADMIN_EMAIL });
+    let user = await User.findOne({ phone: ADMIN_PHONE });
 
     if (user) {
-      // آپدیت رمز و role
-      user.password = ADMIN_PASS;
+      user.name = user.name || ADMIN_NAME;
       user.role = 'admin';
-      await user.save();
-      console.log('✅ ادمین موجود آپدیت شد');
-    } else {
-      // چک کن phone تکراری نباشه
-      const phoneExists = await User.findOne({ phone: ADMIN_PHONE });
-      if (phoneExists) {
-        // اگه phone تکراریه فقط role و email اضافه کن
-        phoneExists.email = ADMIN_EMAIL;
-        phoneExists.password = ADMIN_PASS;
-        phoneExists.role = 'admin';
-        await phoneExists.save();
-        console.log('✅ یوزر موجود ارتقا به ادمین پیدا کرد');
-      } else {
-        user = new User({
-          name: ADMIN_NAME,
-          phone: ADMIN_PHONE,
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASS,
-          role: 'admin',
-        });
-        await user.save();
-        console.log('✅ ادمین جدید ساخته شد');
+      if (ADMIN_PASS) user.password = ADMIN_PASS;
+      if (ADMIN_EMAIL && !user.email) {
+        const emailTaken = await User.findOne({ email: ADMIN_EMAIL, _id: { $ne: user._id } });
+        if (!emailTaken) user.email = ADMIN_EMAIL;
       }
+      await user.save();
+      console.log('✅ مالک سایت (ادمین) با همین شماره به‌روز شد');
+    } else {
+      user = new User({
+        name: ADMIN_NAME,
+        phone: ADMIN_PHONE,
+        email: ADMIN_EMAIL,
+        password: ADMIN_PASS,
+        role: 'admin',
+      });
+      await user.save();
+      console.log('✅ ادمین جدید ساخته شد');
     }
 
     console.log('');

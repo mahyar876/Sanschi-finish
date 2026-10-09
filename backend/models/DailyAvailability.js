@@ -18,6 +18,18 @@ const dailySlotSchema = new mongoose.Schema(
       ref: 'Reservation',
       default: null,
     },
+    slotStatus: {
+      type: String,
+      enum: ['free', 'locked', 'booked', 'blocked'],
+      default: 'free',
+    },
+    lockUntil: { type: Date, default: null },
+    lockedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    blocked: { type: Boolean, default: false },
   },
   { _id: false },
 );

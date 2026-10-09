@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getUser } from '@/lib/session';
+import { accountHomePath } from '@/lib/account-home';
+import { getUser, type SessionUser } from '@/lib/session';
 
 const nav = [
   { href: '/', label: 'خانه' },
@@ -15,23 +16,38 @@ const nav = [
 
 export function Header() {
   const pathname = usePathname();
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    setLoggedIn(!!getUser());
+    setUser(getUser());
   }, [pathname]);
 
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menuOpen]);
+
+  const isHome = pathname === '/';
+
   return (
-    <header className="site-header">
+    <header className={isHome ? 'site-header site-header-home' : 'site-header'}>
+      <div className="header-glow" aria-hidden />
       <div className="header-inner">
         <Link href="/" className="logo">
           <span className="logo-mark" aria-hidden />
-          سانس‌چی
+          <span className="logo-text">
+            <span className="logo-name">سانس‌چی</span>
+            <span className="logo-tagline">رزرو آنلاین · چمن و سالن</span>
+          </span>
         </Link>
         <nav className="nav" aria-label="منوی اصلی">
           {nav.map((item) => (
@@ -43,6 +59,17 @@ export function Header() {
               {item.label}
             </Link>
           ))}
+          <Link
+            href="/for-owners"
+            className={
+              pathname === '/for-owners' || pathname.startsWith('/for-owners/')
+                ? 'nav-link nav-link-partner active'
+                : 'nav-link nav-link-partner'
+            }
+            title="ثبت زمین و همکاری با سانس‌چی"
+          >
+            همکاری
+          </Link>
         </nav>
         <div className="header-actions">
           <button
@@ -50,12 +77,13 @@ export function Header() {
             className="nav-toggle"
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
+            aria-label={menuOpen ? 'بستن منو' : 'باز کردن منو'}
             onClick={() => setMenuOpen((o) => !o)}
           >
-            {menuOpen ? '✕' : '☰'}
+            <span aria-hidden>{menuOpen ? '✕' : '☰'}</span>
           </button>
-          {loggedIn ? (
-            <Link href="/profile" className="btn btn-ghost btn-sm">
+          {user ? (
+            <Link href={accountHomePath(user.role)} className="btn btn-ghost btn-sm">
               حساب من
             </Link>
           ) : (
@@ -84,6 +112,14 @@ export function Header() {
             {item.label}
           </Link>
         ))}
+        <Link
+          href="/for-owners"
+          className={
+            pathname === '/for-owners' ? 'mobile-nav-link active' : 'mobile-nav-link'
+          }
+        >
+          همکاری — ثبت زمین
+        </Link>
         <Link href="/reserve" className="mobile-nav-link">
           رزرو سانس ←
         </Link>

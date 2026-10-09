@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/DashboardShell';
 import { apiFetch } from '@/lib/fetch-api';
+import { getDemoAdminPitches, getDemoAdminReservations } from '@/lib/demo-dashboard';
+import { isDemoFrontend } from '@/lib/demo';
 import { priceFa } from '@/lib/format';
 
 const adminNav = [
   { href: '/admin', label: 'مدیریت' },
   { href: '/admin/finance', label: 'مالی کل' },
+  { href: '/admin/penalty', label: 'بازی پنالتی' },
   { href: '/settlement', label: 'تسویه‌ها' },
 ];
 
@@ -26,14 +29,25 @@ export function AdminView() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
 
   useEffect(() => {
-    void apiFetch<{ success: boolean; pitches: Pitch[] }>('/pitches?all=1').then((d) => {
-      if (d.success) setPitches(d.pitches);
-    });
-    void apiFetch<{ success: boolean; reservations: Reservation[] }>('/reservations').then(
-      (d) => {
+    if (isDemoFrontend()) {
+      setPitches(getDemoAdminPitches());
+      setReservations(getDemoAdminReservations());
+      return;
+    }
+    void apiFetch<{ success: boolean; pitches: Pitch[] }>('/pitches?all=1')
+      .then((d) => {
+        if (d.success) setPitches(d.pitches);
+      })
+      .catch(() => {
+        setPitches(getDemoAdminPitches());
+      });
+    void apiFetch<{ success: boolean; reservations: Reservation[] }>('/reservations')
+      .then((d) => {
         if (d.success) setReservations(d.reservations.slice(0, 30));
-      },
-    );
+      })
+      .catch(() => {
+        setReservations(getDemoAdminReservations());
+      });
   }, []);
 
   return (

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>سانس‌چی — آنلاین کردن سایت</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2332; --text:#e8eef4; --muted:#8b9cb3; --accent:#3dd68c; --link:#6eb6ff; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, Tahoma, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 1.25rem; line-height: 1.65; }
+    h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
+    .sub { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.95rem; }
+    .card { background: var(--card); border-radius: 12px; padding: 1rem 1.15rem; margin-bottom: 1rem; border: 1px solid #2a3548; }
+    .card h2 { font-size: 1.05rem; margin: 0 0 0.75rem; }
+    .card p, .card li { color: var(--muted); font-size: 0.92rem; }
+    .card ul { margin: 0.5rem 0 0; padding-right: 1.2rem; }
+    a.btn { display: inline-block; margin: 0.35rem 0 0.35rem 0.5rem; padding: 0.65rem 1rem; background: var(--accent); color: #0a1210; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem; }
+    a.btn.secondary { background: #2a3548; color: var(--text); }
+    a.btn:hover { filter: brightness(1.08); }
+    .live { border-color: var(--accent); }
+    .live code { background: #0d1218; padding: 0.2rem 0.45rem; border-radius: 4px; font-size: 0.85rem; word-break: break-all; }
+    .note { font-size: 0.85rem; color: #f0c674; margin-top: 0.75rem; }
+    .done { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>آنلاین کردن سانس‌چی (حداقل کار شما)</h1>
+  <p class="sub">API و سایت لوکال باید روشن باشند. فقط روی دکمه‌ها بزنید و هر جا خواست Secret بگذارید.</p>
+
+  <div class="card live" id="tunnel-card" hidden>
+    <h2>الان — لینک موقت برای دیگران</h2>
+    <p>این لینک را در واتساپ بفرستید (تا لپ‌تاپ روشن و تونل باز باشد):</p>
+    <p><code id="tunnel-url">—</code></p>
+    <p class="note" id="tunnel-note"></p>
+  </div>
+
+  <div class="card">
+    <h2>۱) GitHub — کد</h2>
+    <p>Repository جدید بسازید، فایل‌های پروژه را push کنید (یا ZIP آپلود). بدون این، Render/Vercel از git نمی‌خوانند.</p>
+    <a class="btn" href="https://github.com/new" target="_blank" rel="noopener">ساخت repo جدید</a>
+    <a class="btn secondary" href="https://desktop.github.com/" target="_blank" rel="noopener">GitHub Desktop</a>
+  </div>
+
+  <div class="card">
+    <h2>۲) MongoDB Atlas — دیتابیس رایگان</h2>
+    <ul>
+      <li>Cluster رایگان M0</li>
+      <li>Network Access → <strong>0.0.0.0/0</strong></li>
+      <li>Connection string را کپی کنید</li>
+    </ul>
+    <a class="btn" href="https://cloud.mongodb.com/" target="_blank" rel="noopener">باز کردن Atlas</a>
+  </div>
+
+  <div class="card">
+    <h2>۳) Render — API (backend)</h2>
+    <ul>
+      <li>Blueprint یا Web Service از GitHub</li>
+      <li>Root: <code>backend</code> — Start: <code>npm start</code></li>
+      <li>Env: <code>MONGO_URI</code>, <code>JWT_SECRET</code>, بعداً <code>BASE_URL</code> و <code>FRONTEND_URL</code></li>
+    </ul>
+    <a class="btn" href="https://dashboard.render.com/select-repo?type=blueprint" target="_blank" rel="noopener">Render — Blueprint</a>
+    <a class="btn secondary" href="https://dashboard.render.com/" target="_blank" rel="noopener">داشبورد Render</a>
+  </div>
+
+  <div class="card">
+    <h2>۴) Vercel — سایت (web)</h2>
+    <ul>
+      <li>Import از GitHub</li>
+      <li><strong>Root Directory = web</strong></li>
+      <li><code>NEXT_PUBLIC_API_URL</code> = آدرس Render (مثلاً https://xxx.onrender.com)</li>
+      <li><code>NEXT_PUBLIC_DEMO_MODE</code> = false</li>
+    </ul>
+    <a class="btn" href="https://vercel.com/new" target="_blank" rel="noopener">Vercel — پروژه جدید</a>
+  </div>
+
+  <div class="card">
+    <h2>بازگشت به سایت</h2>
+    <a class="btn secondary" href="/">صفحهٔ اصلی سانس‌چی</a>
+    <a class="btn secondary" href="/login">ورود / ثبت‌نام</a>
+  </div>
+
+  <script>
+    fetch('/api/tunnel-url').then(r => r.json()).then(d => {
+      if (d.url) {
+        document.getElementById('tunnel-card').hidden = false;
+        document.getElementById('tunnel-url').textContent = d.url;
+      } else if (d.message) {
+        document.getElementById('tunnel-card').hidden = false;
+        document.getElementById('tunnel-note').textContent = d.message;
+      }
+    }).catch(() => {});
+  </script>
+</body>
+</html>

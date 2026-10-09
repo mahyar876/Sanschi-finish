@@ -1,0 +1,247 @@
+{
+  "base": "http://localhost:3000",
+  "passed": 30,
+  "failed": 0,
+  "results": [
+    {
+      "viewport": "iPhone SE",
+      "page": "خانه",
+      "path": "/",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-se--_.png"
+    },
+    {
+      "viewport": "iPhone SE",
+      "page": "گالری",
+      "path": "/gallery",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-se--_gallery.png"
+    },
+    {
+      "viewport": "iPhone SE",
+      "page": "رزرو",
+      "path": "/reserve?pitchId=demo-1",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-se--_reserve_pitchId_demo_1.png"
+    },
+    {
+      "viewport": "iPhone SE",
+      "page": "جزئیات زمین",
+      "path": "/gallery/futsal-aria-tehran",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-se--_gallery_futsal_aria_tehran.png"
+    },
+    {
+      "viewport": "iPhone SE",
+      "page": "ورود",
+      "path": "/login",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-se--_login.png"
+    },
+    {
+      "viewport": "iPhone 13",
+      "page": "خانه",
+      "path": "/",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-13--_.png"
+    },
+    {
+      "viewport": "iPhone 13",
+      "page": "گالری",
+      "path": "/gallery",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-13--_gallery.png"
+    },
+    {
+      "viewport": "iPhone 13",
+      "page": "رزرو",
+      "path": "/reserve?pitchId=demo-1",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-13--_reserve_pitchId_demo_1.png"
+    },
+    {
+      "viewport": "iPhone 13",
+      "page": "جزئیات زمین",
+      "path": "/gallery/futsal-aria-tehran",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-13--_gallery_futsal_aria_tehran.png"
+    },
+    {
+      "viewport": "iPhone 13",
+      "page": "ورود",
+      "path": "/login",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-13--_login.png"
+    },
+    {
+      "viewport": "iPhone landscape",
+      "page": "خانه",
+      "path": "/",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-landscape--_.png"
+    },
+    {
+      "viewport": "iPhone landscape",
+      "page": "گالری",
+      "path": "/gallery",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-landscape--_gallery.png"
+    },
+    {
+      "viewport": "iPhone landscape",
+      "page": "رزرو",
+      "path": "/reserve?pitchId=demo-1",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-landscape--_reserve_pitchId_demo_1.png"
+    },
+    {
+      "viewport": "iPhone landscape",
+      "page": "جزئیات زمین",
+      "path": "/gallery/futsal-aria-tehran",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-landscape--_gallery_futsal_aria_tehran.png"
+    },
+    {
+      "viewport": "iPhone landscape",
+      "page": "ورود",
+      "path": "/login",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/iphone-landscape--_login.png"
+    },
+    {
+      "viewport": "iPad Mini",
+      "page": "خانه",
+      "path": "/",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-mini--_.png"
+    },
+    {
+      "viewport": "iPad Mini",
+      "page": "گالری",
+      "path": "/gallery",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-mini--_gallery.png"
+    },
+    {
+      "viewport": "iPad Mini",
+      "page": "رزرو",
+      "path": "/reserve?pitchId=demo-1",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-mini--_reserve_pitchId_demo_1.png"
+    },
+    {
+      "viewport": "iPad Mini",
+      "page": "جزئیات زمین",
+      "path": "/gallery/futsal-aria-tehran",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-mini--_gallery_futsal_aria_tehran.png"
+    },
+    {
+      "viewport": "iPad Mini",
+      "page": "ورود",
+      "path": "/login",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-mini--_login.png"
+    },
+    {
+      "viewport": "iPad Air",
+      "page": "خانه",
+      "path": "/",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-air--_.png"
+    },
+    {
+      "viewport": "iPad Air",
+      "page": "گالری",
+      "path": "/gallery",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-air--_gallery.png"
+    },
+    {
+      "viewport": "iPad Air",
+      "page": "رزرو",
+      "path": "/reserve?pitchId=demo-1",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-air--_reserve_pitchId_demo_1.png"
+    },
+    {
+      "viewport": "iPad Air",
+      "page": "جزئیات زمین",
+      "path": "/gallery/futsal-aria-tehran",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-air--_gallery_futsal_aria_tehran.png"
+    },
+    {
+      "viewport": "iPad Air",
+      "page": "ورود",
+      "path": "/login",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/ipad-air--_login.png"
+    },
+    {
+      "viewport": "Desktop",
+      "page": "خانه",
+      "path": "/",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/desktop--_.png"
+    },
+    {
+      "viewport": "Desktop",
+      "page": "گالری",
+      "path": "/gallery",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/desktop--_gallery.png"
+    },
+    {
+      "viewport": "Desktop",
+      "page": "رزرو",
+      "path": "/reserve?pitchId=demo-1",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/desktop--_reserve_pitchId_demo_1.png"
+    },
+    {
+      "viewport": "Desktop",
+      "page": "جزئیات زمین",
+      "path": "/gallery/futsal-aria-tehran",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/desktop--_gallery_futsal_aria_tehran.png"
+    },
+    {
+      "viewport": "Desktop",
+      "page": "ورود",
+      "path": "/login",
+      "ok": true,
+      "issues": [],
+      "shot": "/dev/responsive-showcase/desktop--_login.png"
+    }
+  ]
+}

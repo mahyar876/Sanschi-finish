@@ -3,11 +3,50 @@ const router = express.Router();
 const Reservation = require('../models/Reservation');
 const Pitch = require('../models/Pitch');
 const DailyAvailability = require('../models/DailyAvailability');
+const BookingHistory = require('../models/BookingHistory');
 const { protect, adminOnly } = require('../middleware/authController');
+const {
+  computeTotals,
+  tryAcquireLock,
+  releaseSlotOnDaily,
+  expireStaleForDaily,
+  BOOKING_STATUS,
+  PAYMENT_STATUS,
+  legacyStatusFromBooking,
+} = require('../services/slotService');
+const { appendHistory } = require('../services/bookingHistory');
+const { confirmReservationPayment } = require('../services/paymentConfirm');
+const {
+  validateDiscountCode,
+  consumeDiscountCode,
+} = require('../services/discountService');
+const { describeCancelPolicy } = require('../services/cancelPolicy');
+const {
+  cancelReservationByUser,
+  completeRefund,
+} = require('../services/cancelReservation');
+const { executeRefundForReservation } = require('../services/refundService');
+const Review = require('../models/Review');
+const { isSlotPast } = require('../lib/jalaliTime');
 
-// کمک: مبلغ کمیسیون ثابت سانس‌یار را برای یک زمین برمی‌گرداند (هیچ‌وقت undefined نیست)
 function getPitchCommission(pitch) {
   return (pitch && pitch.commissionAmount) || 0;
+}
+
+async function loadOwnedReservation(req, res, next) {
+  try {
+    const reservation = await Reservation.findById(req.params.id);
+    if (!reservation) {
+      return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
+    }
+    if (reservation.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'دسترسی ندارید' });
+    }
+    req.reservation = reservation;
+    next();
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
 }
 
 // ─────────────────────────────────────
@@ -15,7 +54,8 @@ function getPitchCommission(pitch) {
 // ─────────────────────────────────────
 router.post('/', protect, async (req, res) => {
   try {
-    const { pitchId, slotIndex, date, playerCount, note } = req.body;
+    const { pitchId, slotIndex, date, playerCount, note, discountCode } =
+      req.body;
 
     if (!date) {
       return res
@@ -28,39 +68,38 @@ router.post('/', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'زمین پیدا نشد' });
     }
 
-    // پیدا یا ساخت DailyAvailability برای این زمین + تاریخ
-    let daily = await DailyAvailability.findOne({ pitch: pitchId, date });
-
-    if (!daily) {
-      const slots = pitch.slots.map((s, i) => ({
-        slotIndex: i,
-        time: s.time,
-        price: s.price,
-        taken: s.taken || false,
-        takenBy: s.takenBy || null,
-        reservationId: null,
-      }));
-      daily = await DailyAvailability.create({ pitch: pitchId, date, slots });
-    }
-
-    // پیدا کردن سانس
-    const slot = daily.slots.find((s) => s.slotIndex === slotIndex);
-    if (!slot) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'سانس نامعتبر است' });
-    }
-    if (slot.taken) {
-      return res.status(400).json({
+    const lockResult = await tryAcquireLock({
+      pitch,
+      pitchId,
+      date,
+      slotIndex,
+      userId: req.user._id,
+    });
+    if (!lockResult.ok) {
+      return res.status(lockResult.code).json({
         success: false,
-        message: 'این سانس در این تاریخ قبلاً رزرو شده',
+        message: lockResult.message,
       });
     }
 
-    // amount = قیمت سانس + کمیسیون سانس‌یار (همین مبلغ رو مشتری پرداخت می‌کنه)
-    // siteCommission و pitchAmount موقع تأیید پرداخت snapshot می‌شن
-    const pitchCommission = pitch.commissionAmount || 0;
-    const totalAmount = slot.price + pitchCommission;
+    const { slot, lockUntil, daily } = lockResult;
+    let discount = 0;
+    let appliedCode = '';
+    let discountId = null;
+    if (discountCode) {
+      const v = await validateDiscountCode(discountCode, pitchId, slot.price);
+      if (!v.ok) {
+        return res.status(400).json({ success: false, message: v.message });
+      }
+      discount = v.discountAmount;
+      appliedCode = v.code;
+      discountId = v.discountId;
+    }
+    const { basePrice, commission, totalAmount } = computeTotals(
+      slot.price,
+      pitch,
+      discount,
+    );
 
     const reservation = await Reservation.create({
       user: req.user._id,
@@ -71,51 +110,131 @@ router.post('/', protect, async (req, res) => {
       playerCount: playerCount || pitch.size,
       note: note || '',
       amount: totalAmount,
+      basePrice,
+      discountAmount: discount,
+      discountCode: appliedCode,
+      commissionAtBooking: commission,
       status: 'pending',
+      bookingStatus: BOOKING_STATUS.PENDING_PAYMENT,
+      paymentStatus: PAYMENT_STATUS.PENDING,
+      lockExpiresAt: lockUntil,
     });
 
-    // علامت‌گذاری اتمیک سانس — فقط اگر همین الان هم هنوز خالی باشد.
-    // این از double-booking در درخواست‌های همزمان جلوگیری می‌کند.
-    const claim = await DailyAvailability.updateOne(
+    await DailyAvailability.updateOne(
       {
-        pitch: pitchId,
-        date,
-        slots: { $elemMatch: { slotIndex: slotIndex, taken: false } },
+        _id: daily._id,
+        slots: { $elemMatch: { slotIndex, lockedBy: req.user._id } },
       },
       {
         $set: {
-          'slots.$.taken': true,
-          'slots.$.takenBy': req.user._id,
           'slots.$.reservationId': reservation._id,
         },
       },
     );
 
-    if (!claim.modifiedCount) {
-      // یک نفر دیگر در همین لحظه این سانس را گرفت → رزرو ساخته‌شده را برگردان
-      await Reservation.deleteOne({ _id: reservation._id });
-      return res.status(409).json({
-        success: false,
-        message:
-          'این سانس همین الان رزرو شد، لطفاً سانس یا تاریخ دیگری انتخاب کنید',
-      });
-    }
+    if (discountId) await consumeDiscountCode(discountId);
+
+    await appendHistory(reservation._id, 'created', 'رزرو و قفل موقت سانس');
+    await appendHistory(reservation._id, 'lock', 'قفل ۱۰ دقیقه‌ای فعال شد', {
+      lockUntil,
+    });
 
     res.status(201).json({
       success: true,
-      message: 'رزرو ثبت شد. منتظر تأیید پرداخت...',
+      message: 'رزرو ثبت شد. تا ۱۰ دقیقه پرداخت را تکمیل کنید.',
       reservation: {
         id: reservation._id,
         code: reservation.code,
         pitch: pitch.name,
+        address: pitch.address,
         slotTime: slot.time,
         date,
+        basePrice,
+        discountAmount: discount,
+        commissionAmount: commission,
         amount: totalAmount,
         status: 'pending',
+        bookingStatus: reservation.bookingStatus,
+        paymentStatus: reservation.paymentStatus,
+        lockExpiresAt: lockUntil,
       },
     });
   } catch (err) {
     console.error('POST /reservations error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// POST /api/reservations/:id/discount  (اعمال کد قبل از پرداخت)
+// ─────────────────────────────────────
+router.post('/:id/discount', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const reservation = req.reservation;
+    const { code } = req.body;
+
+    if (reservation.paymentStatus === PAYMENT_STATUS.SUCCESSFUL) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'این رزرو قبلاً پرداخت شده است' });
+    }
+    if (reservation.bookingStatus !== BOOKING_STATUS.PENDING_PAYMENT) {
+      return res.status(400).json({
+        success: false,
+        message: 'در این مرحله امکان اعمال کد تخفیف نیست',
+      });
+    }
+    if (reservation.discountCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'کد تخفیف قبلاً روی این رزرو اعمال شده است',
+      });
+    }
+
+    const pitch = await Pitch.findById(reservation.pitch);
+    if (!pitch) {
+      return res.status(404).json({ success: false, message: 'زمین پیدا نشد' });
+    }
+
+    const basePrice = reservation.basePrice;
+    if (!basePrice) {
+      return res.status(400).json({
+        success: false,
+        message: 'قیمت پایه رزرو نامعتبر است',
+      });
+    }
+
+    const v = await validateDiscountCode(code, reservation.pitch, basePrice);
+    if (!v.ok) {
+      return res.status(400).json({ success: false, message: v.message });
+    }
+
+    const { discount, commission, totalAmount } = computeTotals(
+      basePrice,
+      pitch,
+      v.discountAmount,
+    );
+
+    reservation.discountAmount = discount;
+    reservation.discountCode = v.code;
+    reservation.amount = totalAmount;
+    reservation.commissionAtBooking = commission;
+    await reservation.save();
+    await consumeDiscountCode(v.discountId);
+    await appendHistory(reservation._id, 'discount_applied', 'کد تخفیف اعمال شد', {
+      code: v.code,
+      discountAmount: discount,
+    });
+
+    res.json({
+      success: true,
+      code: v.code,
+      percent: v.percent,
+      discountAmount: discount,
+      amount: totalAmount,
+    });
+  } catch (err) {
+    console.error('POST /reservations/:id/discount error:', err);
     res.status(500).json({ success: false, message: 'خطای سرور' });
   }
 });
@@ -140,25 +259,27 @@ router.post('/recurring', protect, async (req, res) => {
     const created = [];
     const skipped = [];
     for (const date of dates) {
-      let daily = await DailyAvailability.findOne({ pitch: pitchId, date });
-      if (!daily) {
-        const slots = pitch.slots.map((s, i) => ({
-          slotIndex: i,
-          time: s.time,
-          price: s.price,
-          taken: s.taken || false,
-          takenBy: s.takenBy || null,
-          reservationId: null,
-        }));
-        daily = await DailyAvailability.create({ pitch: pitchId, date, slots });
-      }
-      const slot = daily.slots.find((s) => s.slotIndex === slotIndex);
-      if (!slot || slot.taken) {
+      if (isSlotPast(date, pitch.slots[slotIndex]?.time || '', new Date())) {
         skipped.push(date);
         continue;
       }
-      const recurringCommission = pitch.commissionAmount || 0;
-      const recurringAmount = slot.price + recurringCommission;
+      const lockResult = await tryAcquireLock({
+        pitch,
+        pitchId,
+        date,
+        slotIndex,
+        userId: req.user._id,
+      });
+      if (!lockResult.ok) {
+        skipped.push(date);
+        continue;
+      }
+      const { slot, lockUntil, daily } = lockResult;
+      const { basePrice, commission, totalAmount } = computeTotals(
+        slot.price,
+        pitch,
+        0,
+      );
       const reservation = await Reservation.create({
         user: req.user._id,
         pitch: pitchId,
@@ -167,36 +288,28 @@ router.post('/recurring', protect, async (req, res) => {
         date,
         playerCount: playerCount || pitch.size,
         note: note || '',
-        amount: recurringAmount,
+        amount: totalAmount,
+        basePrice,
+        commissionAtBooking: commission,
         status: 'pending',
+        bookingStatus: BOOKING_STATUS.PENDING_PAYMENT,
+        paymentStatus: PAYMENT_STATUS.PENDING,
+        lockExpiresAt: lockUntil,
         recurringGroupId: groupId,
       });
-      // علامت‌گذاری اتمیک — جلوگیری از رزرو همزمانِ همان سانس/تاریخ
-      const claim = await DailyAvailability.updateOne(
+      await DailyAvailability.updateOne(
         {
-          pitch: pitchId,
-          date,
-          slots: { $elemMatch: { slotIndex: slotIndex, taken: false } },
+          _id: daily._id,
+          slots: { $elemMatch: { slotIndex, lockedBy: req.user._id } },
         },
-        {
-          $set: {
-            'slots.$.taken': true,
-            'slots.$.takenBy': req.user._id,
-            'slots.$.reservationId': reservation._id,
-          },
-        },
+        { $set: { 'slots.$.reservationId': reservation._id } },
       );
-      if (!claim.modifiedCount) {
-        // یک نفر دیگر همین لحظه این سانس را گرفت → رزرو ساخته‌شده را حذف کن
-        await Reservation.deleteOne({ _id: reservation._id });
-        skipped.push(date);
-        continue;
-      }
+      await appendHistory(reservation._id, 'created', 'رزرو تکراری — قفل موقت');
       created.push({
         id: reservation._id,
         date,
         time: slot.time,
-        amount: recurringAmount,
+        amount: totalAmount,
       });
     }
     if (!created.length) {
@@ -224,6 +337,15 @@ router.post('/recurring', protect, async (req, res) => {
 // ─────────────────────────────────────
 router.post('/recurring/:groupId/pay', protect, async (req, res) => {
   try {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_MOCK_PAY !== 'true'
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'برای گروه از درگاه زرین‌پال با recurringGroupId استفاده کنید',
+      });
+    }
     const list = await Reservation.find({
       recurringGroupId: req.params.groupId,
       user: req.user._id,
@@ -231,21 +353,10 @@ router.post('/recurring/:groupId/pay', protect, async (req, res) => {
     if (!list.length)
       return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
 
-    // همه رزروهای یک گروه تکراری روی یک زمین هستن — یه بار pitch رو بخون
-    const pitch = await Pitch.findById(list[0].pitch).select(
-      'commissionAmount',
-    );
-    const commission = getPitchCommission(pitch);
-
-    const txn = 'TXN-' + Date.now();
+    const ref = String(Date.now());
     for (const r of list) {
-      if (r.status !== 'paid') {
-        r.status = 'paid';
-        r.payment.transactionId = txn;
-        r.payment.paidAt = new Date();
-        r.siteCommission = commission;
-        r.pitchAmount = Math.max(0, r.amount - commission);
-        await r.save();
+      if (r.paymentStatus !== PAYMENT_STATUS.SUCCESSFUL) {
+        await confirmReservationPayment(r, ref, 'mock');
       }
     }
     res.json({
@@ -276,62 +387,15 @@ router.delete('/recurring/:groupId', protect, async (req, res) => {
         date: r.date,
       });
       if (daily) {
-        const slot = daily.slots.find((s) => s.slotIndex === r.slotIndex);
-        if (slot) {
-          slot.taken = false;
-          slot.takenBy = null;
-          slot.reservationId = null;
-          await daily.save();
-        }
+        releaseSlotOnDaily(daily, r.slotIndex);
+        await daily.save();
       }
       r.status = 'cancelled';
+      r.bookingStatus = BOOKING_STATUS.CANCELLED_BY_USER;
+      r.paymentStatus = PAYMENT_STATUS.FAILED;
       await r.save();
     }
     res.json({ success: true, cancelled: list.length });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'خطای سرور' });
-  }
-});
-
-// ─────────────────────────────────────
-// POST /api/reservations/:id/pay  (تأیید پرداخت)
-// اینجاست که کمیسیون ثابتِ همین زمین (Pitch.commissionAmount) خونده و
-// روی رزرو snapshot می‌شه. خود مشتری همچنان فقط amount کامل را می‌بیند.
-// ─────────────────────────────────────
-router.post('/:id/pay', protect, async (req, res) => {
-  try {
-    const reservation = await Reservation.findById(req.params.id);
-
-    if (!reservation) {
-      return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
-    }
-    if (reservation.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'دسترسی ندارید' });
-    }
-    if (reservation.status === 'paid') {
-      return res
-        .status(400)
-        .json({ success: false, message: 'این رزرو قبلاً پرداخت شده' });
-    }
-
-    const pitch = await Pitch.findById(reservation.pitch).select(
-      'commissionAmount',
-    );
-    const commission = getPitchCommission(pitch);
-
-    reservation.status = 'paid';
-    reservation.payment.transactionId = 'TXN-' + Date.now();
-    reservation.payment.paidAt = new Date();
-    reservation.siteCommission = commission;
-    reservation.pitchAmount = Math.max(0, reservation.amount - commission);
-    await reservation.save();
-
-    res.json({
-      success: true,
-      message: 'پرداخت تأیید شد 🎉',
-      code: reservation.code,
-      transactionId: reservation.payment.transactionId,
-    });
   } catch (err) {
     res.status(500).json({ success: false, message: 'خطای سرور' });
   }
@@ -353,51 +417,241 @@ router.get('/my', protect, async (req, res) => {
 });
 
 // ─────────────────────────────────────
-// DELETE /api/reservations/:id  (لغو رزرو توسط خود مشتری)
-// فقط رزروهای pending قابل لغو توسط خود مشتری هستن (پرداخت‌شده‌ها رو فقط
-// owner/admin می‌تونن لغو کنن، چون باید بدونن چقدرش قابل‌برگشته)
+// GET /api/reservations/cancel-policy
 // ─────────────────────────────────────
-router.delete('/:id', protect, async (req, res) => {
-  try {
-    const reservation = await Reservation.findById(req.params.id);
+router.get('/cancel-policy', async (req, res) => {
+  res.json({ success: true, lines: describeCancelPolicy() });
+});
 
-    if (!reservation) {
-      return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
+// ─────────────────────────────────────
+// GET /api/reservations/:id  (جزئیات رزرو خودم)
+// ─────────────────────────────────────
+router.get('/:id', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const r = await Reservation.findById(req.params.id).populate(
+      'pitch',
+      'name type size address desc',
+    );
+    res.json({ success: true, reservation: r });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// GET /api/reservations/:id/history
+// ─────────────────────────────────────
+router.get('/:id/history', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const items = await BookingHistory.find({ reservation: req.params.id }).sort({
+      at: 1,
+    });
+    res.json({ success: true, history: items });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// POST /api/reservations/:id/revalidate  (قبل از پرداخت)
+// ─────────────────────────────────────
+router.post('/:id/revalidate', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    let r = req.reservation;
+    const daily = await DailyAvailability.findOne({
+      pitch: r.pitch,
+      date: r.date,
+    });
+    if (daily) await expireStaleForDaily(daily);
+    r = await Reservation.findById(r._id);
+
+    if (r.bookingStatus === BOOKING_STATUS.EXPIRED) {
+      return res.status(410).json({
+        success: false,
+        message:
+          'زمان پرداخت شما به پایان رسیده و سانس دوباره آزاد شده است. لطفاً سانس جدید انتخاب کنید.',
+      });
     }
-    if (reservation.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'دسترسی ندارید' });
-    }
-    if (reservation.status === 'paid') {
+    if (r.paymentStatus === PAYMENT_STATUS.SUCCESSFUL) {
       return res.status(400).json({
         success: false,
-        message: 'رزرو پرداخت‌شده را نمیتوان لغو کرد',
+        message: 'این رزرو قبلاً پرداخت شده است',
+      });
+    }
+    if (
+      r.lockExpiresAt &&
+      new Date(r.lockExpiresAt) <= new Date() &&
+      r.bookingStatus === BOOKING_STATUS.PENDING_PAYMENT
+    ) {
+      if (daily) releaseSlotOnDaily(daily, r.slotIndex);
+      r.bookingStatus = BOOKING_STATUS.EXPIRED;
+      r.paymentStatus = PAYMENT_STATUS.FAILED;
+      r.status = legacyStatusFromBooking(BOOKING_STATUS.EXPIRED);
+      await r.save();
+      await appendHistory(r._id, 'expired', 'قفل منقضی شد');
+      if (daily) await daily.save();
+      return res.status(410).json({
+        success: false,
+        message:
+          'زمان پرداخت شما به پایان رسیده و سانس دوباره آزاد شده است.',
       });
     }
 
-    // آزاد کردن سانس فقط برای همون روز — نه برای روزهای دیگه
+    res.json({
+      success: true,
+      reservation: {
+        id: r._id,
+        amount: r.amount,
+        lockExpiresAt: r.lockExpiresAt,
+        bookingStatus: r.bookingStatus,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// POST /api/reservations/:id/pay  (mock — فقط توسعه)
+// ─────────────────────────────────────
+router.post('/:id/pay', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_MOCK_PAY !== 'true'
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'پرداخت آزمایشی در محیط واقعی غیرفعال است. از درگاه استفاده کنید.',
+      });
+    }
+
+    const reservation = req.reservation;
+    if (reservation.paymentStatus === PAYMENT_STATUS.SUCCESSFUL) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'این رزرو قبلاً پرداخت شده' });
+    }
+
     const daily = await DailyAvailability.findOne({
       pitch: reservation.pitch,
       date: reservation.date,
     });
-
-    if (daily) {
-      const slot = daily.slots.find(
-        (s) => s.slotIndex === reservation.slotIndex,
-      );
-      if (slot) {
-        slot.taken = false;
-        slot.takenBy = null;
-        slot.reservationId = null;
-        await daily.save();
-      }
+    if (daily) await expireStaleForDaily(daily);
+    const fresh = await Reservation.findById(reservation._id);
+    if (fresh.bookingStatus === BOOKING_STATUS.EXPIRED) {
+      return res.status(410).json({
+        success: false,
+        message: 'زمان پرداخت به پایان رسیده است.',
+      });
     }
 
-    reservation.status = 'cancelled';
-    await reservation.save();
+    const { reservation: confirmed } = await confirmReservationPayment(
+      fresh,
+      String(Date.now()),
+      'mock',
+    );
 
-    res.json({ success: true, message: 'رزرو لغو شد' });
+    res.json({
+      success: true,
+      message: 'پرداخت تأیید شد 🎉',
+      code: confirmed.code,
+      transactionId: confirmed.payment.transactionId,
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message || 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// POST /api/reservations/:id/cancel  (لغو با قوانین بازپرداخت)
+// ─────────────────────────────────────
+router.post('/:id/cancel', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const result = await cancelReservationByUser(req.reservation);
+    res.json({
+      success: true,
+      message:
+        result.refundAmount > 0
+          ? 'رزرو لغو شد. بازپرداخت در حال پیگیری است.'
+          : 'رزرو لغو شد.',
+      refundAmount: result.refundAmount,
+      reservation: result.reservation,
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message || 'خطا' });
+  }
+});
+
+// ─────────────────────────────────────
+// POST /api/reservations/:id/review
+// ─────────────────────────────────────
+router.post('/:id/review', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const { rating, text } = req.body;
+    const r = req.reservation;
+    if (r.bookingStatus !== BOOKING_STATUS.COMPLETED) {
+      return res.status(400).json({
+        success: false,
+        message: 'فقط پس از اتمام سانس می‌توانید نظر ثبت کنید',
+      });
+    }
+    const rate = parseInt(rating, 10);
+    if (!rate || rate < 1 || rate > 5) {
+      return res.status(400).json({ success: false, message: 'امتیاز ۱ تا ۵ است' });
+    }
+    const exists = await Review.findOne({ reservation: r._id });
+    if (exists) {
+      return res.status(400).json({ success: false, message: 'قبلاً نظر ثبت شده' });
+    }
+    const review = await Review.create({
+      reservation: r._id,
+      user: r.user,
+      pitch: r.pitch,
+      rating: rate,
+      text: text || '',
+    });
+    await appendHistory(r._id, 'review', 'نظر مشتری ثبت شد');
+    res.status(201).json({ success: true, review });
   } catch (err) {
     res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// POST /api/reservations/:id/refund/complete  (ادمین)
+// ─────────────────────────────────────
+router.post(
+  '/:id/refund/complete',
+  protect,
+  adminOnly,
+  async (req, res) => {
+    try {
+      const reservation = await Reservation.findById(req.params.id);
+      if (!reservation) {
+        return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
+      }
+      const updated = await executeRefundForReservation(reservation);
+      res.json({ success: true, reservation: updated });
+    } catch (err) {
+      res.status(400).json({ success: false, message: err.message });
+    }
+  },
+);
+
+// ─────────────────────────────────────
+// DELETE /api/reservations/:id  (لغو — همان POST /cancel)
+// ─────────────────────────────────────
+router.delete('/:id', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const result = await cancelReservationByUser(req.reservation);
+    res.json({
+      success: true,
+      message: 'رزرو لغو شد',
+      refundAmount: result.refundAmount,
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message || 'خطا' });
   }
 });
 

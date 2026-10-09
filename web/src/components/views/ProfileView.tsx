@@ -3,9 +3,20 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { DashboardShell } from '@/components/DashboardShell';
+import {
+  ActionsPanel,
+  DataSection,
+  PageIntro,
+  StatCard,
+  StatGrid,
+} from '@/components/dashboard/DashboardPageBlocks';
 import { apiFetch } from '@/lib/fetch-api';
-import { getUser, type SessionUser } from '@/lib/session';
+import {
+  cancelDemoReservation,
+  getDemoReservations,
+} from '@/lib/demo-reservations';
+import { isDemoFrontend } from '@/lib/demo';
+import { getToken, getUser, setSession, type SessionUser } from '@/lib/session';
 import { priceFa } from '@/lib/format';
 
 type Reservation = {
@@ -42,18 +53,33 @@ export function ProfileView() {
   }, [router]);
 
   async function loadReservations() {
+    if (isDemoFrontend()) {
+      setReservations(getDemoReservations());
+      return;
+    }
     try {
       const data = await apiFetch<{ success: boolean; reservations: Reservation[] }>(
         '/reservations/my',
       );
       if (data.success) setReservations(data.reservations);
     } catch {
-      /* ignore */
+      if (isDemoFrontend()) setReservations(getDemoReservations());
     }
   }
 
   async function saveProfile() {
     setMsg('');
+    if (isDemoFrontend()) {
+      const u = getUser();
+      const token = getToken();
+      if (u && token) {
+        const next = { ...u, name: name.trim() || u.name, email: email || undefined };
+        setSession(token, next);
+        setUser(next);
+        setMsg('ذخیره شد');
+      }
+      return;
+    }
     try {
       const data = await apiFetch<{ success: boolean; user: SessionUser; message?: string }>(
         '/auth/me',
@@ -69,32 +95,31 @@ export function ProfileView() {
 
   async function cancelReservation(id: string) {
     if (!confirm('این رزرو لغو شود؟')) return;
+    if (isDemoFrontend()) {
+      cancelDemoReservation(id);
+      void loadReservations();
+      return;
+    }
     await apiFetch(`/reservations/${id}`, { method: 'DELETE' });
     void loadReservations();
   }
 
-  const nav = [
-    { href: '/profile', label: 'پروفایل' },
-    { href: '/finance', label: 'مالی (مالک)' },
-    { href: '/owner', label: 'پنل مالک' },
-    { href: '/admin', label: 'مدیریت' },
-  ];
-
   return (
-    <DashboardShell title="حساب کاربری" subtitle="اطلاعات شخصی و رزروهای شما" nav={nav}>
-      <div className="stat-row">
-        <div className="stat-card">
-          <div className="label">نام</div>
-          <div className="value">{user?.name || '—'}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">نقش</div>
-          <div className="value">{user?.role === 'admin' ? 'مدیر' : 'کاربر'}</div>
-        </div>
-      </div>
+    <>
+      <PageIntro title="حساب کاربری" description="اطلاعات شخصی و رزروهای شما">
+        <Link href="/player" className="btn btn-secondary btn-sm">
+          پنل بازیکن جدید
+        </Link>
+      </PageIntro>
+      <StatGrid>
+        <StatCard label="نام" value={user?.name || '—'} />
+        <StatCard
+          label="نقش"
+          value={user?.role === 'admin' ? 'مدیر' : user?.role === 'owner' ? 'مالک' : 'کاربر'}
+        />
+      </StatGrid>
 
-      <div className="panel" style={{ marginBottom: '1.5rem' }}>
-        <h2>ویرایش پروفایل</h2>
+      <ActionsPanel title="ویرایش پروفایل">
         <div className="field">
           <label>نام</label>
           <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -107,9 +132,9 @@ export function ProfileView() {
           ذخیره
         </button>
         {msg && <p className="form-msg ok">{msg}</p>}
-      </div>
+      </ActionsPanel>
 
-      <h2 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>رزروهای من</h2>
+      <DataSection title="رزروهای من">
       <div className="data-table-wrap">
         <table className="data-table">
           <thead>
@@ -169,6 +194,7 @@ export function ProfileView() {
           </tbody>
         </table>
       </div>
-    </DashboardShell>
+      </DataSection>
+    </>
   );
 }

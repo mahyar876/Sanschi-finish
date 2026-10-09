@@ -2,8 +2,16 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { apiFetch } from '@/lib/fetch-api';
-import { setSession } from '@/lib/session';
+import { apiFetch, ApiError } from '@/lib/fetch-api';
+import {
+  DEMO_OTP,
+  demoLoginAs,
+  demoRegisterUser,
+  isDemoFrontend,
+  SITE_OWNER_PHONE,
+} from '@/lib/demo';
+import { pathAfterAuth } from '@/lib/account-home';
+import { setSession, type SessionUser } from '@/lib/session';
 import { numFa } from '@/lib/jalali';
 
 type Tab = 'login' | 'register';
@@ -11,7 +19,7 @@ type Tab = 'login' | 'register';
 export function LoginView() {
   const router = useRouter();
   const search = useSearchParams();
-  const redirect = search.get('redirect') || '/profile';
+  const redirectParam = search.get('redirect');
 
   const [tab, setTab] = useState<Tab>('login');
   const [method, setMethod] = useState<'phone' | 'email'>('phone');
@@ -25,10 +33,16 @@ export function LoginView() {
   const [regEmail, setRegEmail] = useState('');
   const [regPass, setRegPass] = useState('');
   const [err, setErr] = useState('');
+  const [otpDevHint, setOtpDevHint] = useState('');
   const [loading, setLoading] = useState(false);
+
+  function goAfterAuth() {
+    router.push(pathAfterAuth(redirectParam));
+  }
 
   async function sendOtp() {
     setErr('');
+    setOtpDevHint('');
     if (!/^09[0-9]{9}$/.test(phone)) {
       setErr('شماره موبایل معتبر نیست');
       return;
@@ -41,9 +55,16 @@ export function LoginView() {
       );
       if (!data.success) throw new Error(data.message);
       setOtpSent(true);
-      if (data.dev_otp) console.info('OTP (dev):', data.dev_otp);
+      if (data.dev_otp) {
+        setOtpDevHint(`کد ورود (تا فعال شدن پیامک): ${numFa(Number(data.dev_otp))}`);
+      }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'خطا در ارسال کد');
+      if (isDemoFrontend()) {
+        setOtpSent(true);
+        setErr('');
+        return;
+      }
+      setErr(e instanceof ApiError ? e.message : 'خطا در ارسال کد');
     } finally {
       setLoading(false);
     }
@@ -57,16 +78,27 @@ export function LoginView() {
         success: boolean;
         message?: string;
         token?: string;
-        user?: { id: string; name: string; phone: string; email?: string; role: 'user' | 'admin' };
+        user?: SessionUser & { id: string };
       }>('/auth/verify-otp', {
         method: 'POST',
         body: JSON.stringify({ phone, otp }),
       });
       if (!data.success || !data.token || !data.user) throw new Error(data.message);
-      setSession(data.token, { ...data.user, id: data.user.id });
-      router.push(redirect.startsWith('/') ? redirect : `/${redirect}`);
+      const user: SessionUser = { ...data.user, id: data.user.id };
+      setSession(data.token, user);
+      goAfterAuth();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'کد نامعتبر است');
+      if (isDemoFrontend() && otp.trim() === DEMO_OTP) {
+        const isSiteOwner = phone === SITE_OWNER_PHONE;
+        demoLoginAs(
+          isSiteOwner ? 'admin' : 'user',
+          isSiteOwner ? 'مدیر سانس‌چی' : 'کاربر نمایشی',
+          phone,
+        );
+        goAfterAuth();
+        return;
+      }
+      setErr(e instanceof ApiError ? e.message : 'کد نامعتبر است');
     } finally {
       setLoading(false);
     }
@@ -80,16 +112,22 @@ export function LoginView() {
         success: boolean;
         message?: string;
         token?: string;
-        user?: { id: string; name: string; phone: string; email?: string; role: 'user' | 'admin' };
+        user?: SessionUser & { id: string };
       }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
       if (!data.success || !data.token || !data.user) throw new Error(data.message);
-      setSession(data.token, { ...data.user, id: data.user.id });
-      router.push(redirect.startsWith('/') ? redirect : `/${redirect}`);
+      const user: SessionUser = { ...data.user, id: data.user.id };
+      setSession(data.token, user);
+      goAfterAuth();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'ورود ناموفق');
+      if (isDemoFrontend() && email && password.length >= 4) {
+        demoLoginAs('user', email.split('@')[0] || 'کاربر', '09120000000');
+        goAfterAuth();
+        return;
+      }
+      setErr(e instanceof ApiError ? e.message : 'ورود ناموفق');
     } finally {
       setLoading(false);
     }
@@ -103,7 +141,7 @@ export function LoginView() {
         success: boolean;
         message?: string;
         token?: string;
-        user?: { id: string; name: string; phone: string; email?: string; role: 'user' | 'admin' };
+        user?: SessionUser & { id: string };
       }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify({
@@ -114,13 +152,30 @@ export function LoginView() {
         }),
       });
       if (!data.success || !data.token || !data.user) throw new Error(data.message);
-      setSession(data.token, { ...data.user, id: data.user.id });
-      router.push('/profile');
+      const user: SessionUser = { ...data.user, id: data.user.id };
+      setSession(data.token, user);
+      goAfterAuth();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'ثبت‌نام ناموفق');
+      if (isDemoFrontend() && regName.trim().length >= 2 && /^09[0-9]{9}$/.test(regPhone)) {
+        demoRegisterUser({
+          name: regName.trim(),
+          phone: regPhone,
+          email: regEmail || undefined,
+        });
+        goAfterAuth();
+        return;
+      }
+      setErr(e instanceof ApiError ? e.message : 'ثبت‌نام ناموفق');
     } finally {
       setLoading(false);
     }
+  }
+
+  function quickDemo(role: 'user' | 'admin' | 'owner') {
+    demoLoginAs(role, role === 'admin' ? 'مدیر سانس‌چی' : undefined);
+    const dest =
+      role === 'admin' ? '/admin' : role === 'owner' ? '/owner' : pathAfterAuth(redirectParam);
+    router.push(dest);
   }
 
   return (
@@ -181,9 +236,17 @@ export function LoginView() {
                   <div className="field">
                     <label htmlFor="otp">کد تأیید ({numFa(4)} رقم)</label>
                     <input id="otp" value={otp} onChange={(e) => setOtp(e.target.value)} />
-                    <p className="form-msg" style={{ color: 'var(--text-muted)' }}>
-                      در حالت توسعه، کد در ترمینال سرور چاپ می‌شود.
-                    </p>
+                    {otpDevHint ? (
+                      <p className="form-msg" style={{ color: 'var(--accent)' }}>
+                        {otpDevHint}
+                      </p>
+                    ) : (
+                      <p className="form-msg" style={{ color: 'var(--text-muted)' }}>
+                        {isDemoFrontend()
+                          ? `حالت نمایشی: کد ${DEMO_OTP} را وارد کنید.`
+                          : 'کد پیامک می‌شود؛ اگر SMS فعال نباشد، کد بالا نمایش داده می‌شود.'}
+                      </p>
+                    )}
                   </div>
                 )}
                 {!otpSent ? (
@@ -277,6 +340,35 @@ export function LoginView() {
         )}
 
         {err && <p className="form-msg err">{err}</p>}
+
+        {isDemoFrontend() && (
+          <div className="demo-quick-login">
+            <p>ورود سریع (بدون سرور)</p>
+            <div className="hero-actions">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => quickDemo('user')}
+              >
+                ورود بازیکن
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => quickDemo('admin')}
+              >
+                ورود مالک
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => quickDemo('owner')}
+              >
+                ورود صاحب زمین
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

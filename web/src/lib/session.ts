@@ -3,7 +3,7 @@ export type SessionUser = {
   name: string;
   phone: string;
   email?: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'owner';
 };
 
 const TOKEN_KEY = 'sns_token';

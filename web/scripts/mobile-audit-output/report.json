@@ -1,0 +1,219 @@
+{
+  "device": "iPhone 13",
+  "base": "http://localhost:3000",
+  "at": "2026-10-08T16:22:04.162Z",
+  "passed": 18,
+  "failed": 0,
+  "results": [
+    {
+      "label": "public-/",
+      "pathname": "/",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "public-/gallery",
+      "pathname": "/gallery",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "public-/reserve",
+      "pathname": "/reserve",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "public-/about",
+      "pathname": "/about",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "public-/login",
+      "pathname": "/login",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "public-/penalty",
+      "pathname": "/penalty",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "public-/payment",
+      "pathname": "/payment?reservationId=mock-1&amount=520000&pitchName=Test&date=2025-01-01&time=18:00&name=Test",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "mobile-nav",
+      "pathname": "/",
+      "ok": true,
+      "issues": []
+    },
+    {
+      "label": "user-_profile",
+      "pathname": "/profile",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "user-_owner",
+      "pathname": "/owner",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "user-_finance",
+      "pathname": "/finance",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "user-_settlement",
+      "pathname": "/settlement",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "admin-_profile",
+      "pathname": "/profile",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "admin-_owner",
+      "pathname": "/owner",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "admin-_finance",
+      "pathname": "/finance",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "admin-_settlement",
+      "pathname": "/settlement",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "admin-_admin",
+      "pathname": "/admin",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    },
+    {
+      "label": "admin-_admin_finance",
+      "pathname": "/admin/finance",
+      "ok": true,
+      "status": 200,
+      "overflow": {
+        "scrollW": 390,
+        "clientW": 390,
+        "offenders": []
+      },
+      "issues": []
+    }
+  ]
+}

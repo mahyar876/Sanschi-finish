@@ -44,8 +44,12 @@ router.post('/register', async (req, res) => {
 
     const user = await User.create(payload);
 
+    const { linkApprovedApplicationsForPhone } = require('../services/ownerApplicationReview');
+    await linkApprovedApplicationsForPhone(phone);
+    const refreshed = await User.findById(user._id);
+
     console.log('✅ User created:', user._id);
-    sendToken(res, user, 201);
+    sendToken(res, refreshed || user, 201);
   } catch (err) {
     console.error('❌ REGISTER ERROR:', err.message);
     res.status(500).json({ success: false, message: err.message });
@@ -171,6 +175,10 @@ router.post('/verify-otp', async (req, res) => {
     if (!user) {
       user = await User.create({ name: 'کاربر جدید', phone });
     }
+
+    const { linkApprovedApplicationsForPhone } = require('../services/ownerApplicationReview');
+    await linkApprovedApplicationsForPhone(phone);
+    user = (await User.findById(user._id)) || user;
 
     console.log('✅ OTP تأیید شد برای:', phone);
     sendToken(res, user);

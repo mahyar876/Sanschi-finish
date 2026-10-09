@@ -171,25 +171,6 @@
   box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15);
 }
 
-.keeper-gloves {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 44px;
-  pointer-events: none;
-}
-
-.glove {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: linear-gradient(145deg, #fff, #d4d4d4);
-  border: 1px solid #bbb;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
 .sz:hover:not(.disabled) {
   background: rgba(38, 179, 106, 0.16);
   box-shadow: inset 0 0 20px rgba(38, 179, 106, 0.12);
@@ -239,7 +220,7 @@
 }
 
 .msg-ov.show .msg-box {
-  animation: popIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: popIn 0.22s ease;
 }
 
 @keyframes popIn {

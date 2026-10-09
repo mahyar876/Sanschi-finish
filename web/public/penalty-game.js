@@ -14,35 +14,47 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
    - اگر حدس درست نزد → دایو کاملاً اشتباه
    - حتی اگه درست رفت، بر اساس سختی و zone دفع می‌کنه
 ════════════════════════════════════════ */
+/** کالیبره‌شده: ~۲۰٪ / ~۱۰٪ / ~۵٪ احتمال ۵ گل از ۵ شوت (شبیه‌سازی) */
 const DIFF_CFG = {
   easy: {
     label: 'آسان',
     pillClass: 'pill-easy',
-    reactionMs: 260,
-    guessChance: 0.35, // قبلاً 0.3
-    saveIfAligned: 0.55,
-    centerBonus: 0.1,
-    luckyBlock: 0.05,
+    reactionMs: 280,
+    guessChance: 0.25,
+    saveIfAligned: 1,
+    centerBonus: 0,
+    luckyBlock: 0.02,
+    alwaysSaveWhenAligned: true,
   },
   medium: {
     label: 'متوسط',
     pillClass: 'pill-medium',
-    reactionMs: 140,
-    guessChance: 0.45, // قبلاً 0.4
-    saveIfAligned: 0.52,
-    centerBonus: 0.18,
-    luckyBlock: 0.05,
+    reactionMs: 150,
+    guessChance: 0.5,
+    saveIfAligned: 0.71,
+    centerBonus: 0.08,
+    luckyBlock: 0.055,
+    alwaysSaveWhenAligned: false,
   },
   hard: {
     label: 'سخت',
     pillClass: 'pill-hard',
-    reactionMs: 55,
-    guessChance: 0.65, // قبلاً 0.55
-    saveIfAligned: 0.55, // قبلاً 0.5
-    centerBonus: 0.2,
-    luckyBlock: 0.2, // قبلاً 0.15
+    reactionMs: 70,
+    guessChance: 0.73,
+    saveIfAligned: 0.69,
+    centerBonus: 0.1,
+    luckyBlock: 0.18,
+    topSaveBonus: 0.05,
     antiPattern: true,
+    alwaysSaveWhenAligned: false,
   },
+};
+
+const PENALTY_CONFIG_KEY = 'sanschi_penalty_config';
+const DEFAULT_PENALTY_REWARDS = {
+  easy: { discountPercent: 5, discountFixedCap: 700000, minGoals: 5 },
+  medium: { discountPercent: 5, discountFixedCap: 1000000, minGoals: 5 },
+  hard: { discountPercent: 5, discountFixedCap: 1500000, minGoals: 5 },
 };
 
 /*
@@ -98,6 +110,16 @@ const ALL_DIRS = [
   'center',
 ];
 
+/** zone مقصد هر جهت دایو (برای هم‌ترازی انیمیشن با ۶ خانه) */
+const DIR_TARGET_ZONE = {
+  'left-up': 0,
+  'center-up': 1,
+  'right-up': 2,
+  left: 3,
+  center: 4,
+  right: 5,
+};
+
 /* ════════════════════════════════════════
    STATE
 ════════════════════════════════════════ */
@@ -116,6 +138,7 @@ let shotLog = []; // تاریخچه zone‌های زده‌شده
 const ballEl = $('ball');
 const shadowEl = $('shadow');
 const keeperEl = $('keeper');
+const keeperWrap = $('keeperWrap');
 const goalEl = $('goal');
 const fieldEl = $('field');
 const aimEl = $('aim');
@@ -145,6 +168,21 @@ function startGame(d) {
   pill.className = 'diff-pill ' + cfg.pillClass;
   diffScr.classList.add('hidden');
   resetState(true);
+}
+
+function loadPenaltyRewards() {
+  try {
+    const raw = localStorage.getItem(PENALTY_CONFIG_KEY);
+    if (!raw) return { ...DEFAULT_PENALTY_REWARDS };
+    const parsed = JSON.parse(raw);
+    return {
+      easy: { ...DEFAULT_PENALTY_REWARDS.easy, ...parsed.easy },
+      medium: { ...DEFAULT_PENALTY_REWARDS.medium, ...parsed.medium },
+      hard: { ...DEFAULT_PENALTY_REWARDS.hard, ...parsed.hard },
+    };
+  } catch (e) {
+    return { ...DEFAULT_PENALTY_REWARDS };
+  }
 }
 
 /* ════════════════════════════════════════
@@ -179,43 +217,45 @@ function resetState(full) {
    3. اگه جهت اشتباه رفت → فقط cfg.luckyBlock شانس دفع دارد
    4. اگه جهت درست رفت → cfg.saveIfAligned (+ centerBonus برای وسط)
 ════════════════════════════════════════ */
+function pickWrongDir(correctDir) {
+  const wrong = ALL_DIRS.filter((d) => d !== correctDir);
+  return pick(wrong);
+}
+
 function computeAction(z) {
   const correctDir = ZONE_KEEPER[z];
   let chosenDir;
+  let guessChance = cfg.guessChance;
 
-  /* anti-pattern در hard */
   if (cfg.antiPattern && shotLog.length >= 2) {
     const last = shotLog[shotLog.length - 1];
     const prev = shotLog[shotLog.length - 2];
-    if (last === z && prev === z) {
-      /* سه بار همونجا؟ ۸۰٪ اونجا می‌مونه */
-      chosenDir = Math.random() < 0.8 ? correctDir : pick(ALL_DIRS);
-    } else if (last === z) {
-      /* دو بار → ۵۵٪ */
-      chosenDir = Math.random() < 0.55 ? correctDir : pick(ALL_DIRS);
-    } else {
-      chosenDir = Math.random() < cfg.guessChance ? correctDir : pick(ALL_DIRS);
-    }
-  } else {
-    chosenDir = Math.random() < cfg.guessChance ? correctDir : pick(ALL_DIRS);
+    if (last === z && prev === z) guessChance = Math.min(0.9, guessChance + 0.16);
+    else if (last === z) guessChance = Math.min(0.82, guessChance + 0.08);
   }
 
-  /* محاسبه احتمال دفع */
+  chosenDir =
+    Math.random() < guessChance ? correctDir : pickWrongDir(correctDir);
+
   const aligned = chosenDir === correctDir;
+
+  if (aligned && cfg.alwaysSaveWhenAligned) {
+    return { dir: chosenDir, saved: true };
+  }
+
   let saveP = 0;
   if (aligned) {
     saveP = cfg.saveIfAligned;
-    /* وسط‌ها راحت‌تر دفع می‌شن */
     if (z === 1 || z === 4) saveP += cfg.centerBonus;
-    /* بالا سخت‌تر — keeper باید بپره (در سطوح بالاتر این جریمه کمتره) */
-    const topPenalty = diff === 'hard' ? 0.02 : diff === 'medium' ? 0.05 : 0.08;
-    if (z === 0 || z === 2) saveP -= topPenalty;
-    if (z === 1) saveP -= topPenalty * 0.6;
+    if (diff === 'hard' && (z === 0 || z === 1 || z === 2)) {
+      saveP += cfg.topSaveBonus || 0;
+    }
+    if (diff === 'medium' && (z === 0 || z === 2)) saveP -= 0.03;
   } else {
     saveP = cfg.luckyBlock;
   }
 
-  saveP = Math.max(0, Math.min(0.9, saveP));
+  saveP = Math.max(0, Math.min(0.93, saveP));
   return { dir: chosenDir, saved: Math.random() < saveP };
 }
 
@@ -244,15 +284,22 @@ function shoot(z) {
   /* بال شروع می‌کنه */
   animBall(z);
 
-  /* keeper بعد از تأخیر واکنش نشون می‌ده */
-  setTimeout(() => {
-    animKeeper(action.dir);
-  }, cfg.reactionMs);
+  const isTop = z === 0 || z === 1 || z === 2;
+  const reactMs = isTop
+    ? Math.max(40, cfg.reactionMs - 35)
+    : cfg.reactionMs;
 
-  /* نتیجه بعد از رسیدن بال */
+  const diveDir = ZONE_KEEPER[z];
+
+  /* keeper بعد از تأخیر — همیشه به سمت zone شوت (۶ جهت واضح) */
   setTimeout(() => {
-    applyResult(z, action.saved);
-  }, 540);
+    animKeeper(diveDir, z);
+  }, reactMs);
+
+  /* نتیجه هم‌زمان با رسیدن توپ */
+  setTimeout(() => {
+    applyResult(z, action.saved, diveDir);
+  }, 620);
 
   /* ریست و ادامه */
   setTimeout(() => {
@@ -292,7 +339,8 @@ function animBall(z) {
 
   const durMs = 640;
   const spin = (Math.random() < 0.5 ? 1 : -1) * Math.floor(rand(420, 900));
-  const arcHeight = rand(22, 38);
+  const isTop = z === 0 || z === 1 || z === 2;
+  const arcHeight = isTop ? rand(6, 14) : rand(18, 32);
 
   fieldEl.classList.add('field-kick');
   setTimeout(() => fieldEl.classList.remove('field-kick'), 480);
@@ -337,22 +385,106 @@ function animBall(z) {
 }
 
 /* ════════════════════════════════════════
-   KEEPER ANIMATION
+   KEEPER ANIMATION (Web Animations — پرش واقعی)
 ════════════════════════════════════════ */
-const DIVE_DUR = { easy: 0.38, medium: 0.28, hard: 0.2 };
+const DIVE_DUR = { easy: 420, medium: 320, hard: 240 };
+let keeperAnims = [];
 
-function animKeeper(dir) {
+function keeperDiveMotion(dir, shotZone) {
+  const gh = goalEl.getBoundingClientRect().height || 140;
+  const gw = goalEl.getBoundingClientRect().width || 300;
+  const keeperH = keeperEl.getBoundingClientRect().height || 56;
+  const tz = DIR_TARGET_ZONE[dir] ?? shotZone;
+  const pos = ZONE_POS[tz];
+
+  const highDir =
+    dir === 'center-up' || dir === 'left-up' || dir === 'right-up';
+
+  /* مرکز zone نسبت به وسط دروازه (keeper از پایین-وسط شروع می‌کند) */
+  const x = ((pos.x - 50) / 100) * gw * 0.94;
+  const zoneFromBottom = ((100 - pos.y) / 100) * gh;
+  /* سر داخل چهارچوب بماند (بالای دروازه clip نشود) */
+  const maxRise = Math.max(8, gh - keeperH - 10);
+  let rise = zoneFromBottom - keeperH * 0.38;
+  rise = Math.max(tz >= 3 ? 2 : 8, Math.min(maxRise, rise));
+
+  let rot = 0;
+  if (dir === 'left' || dir === 'left-up') rot = tz <= 2 ? 22 : 28;
+  else if (dir === 'right' || dir === 'right-up') rot = tz <= 2 ? -22 : -28;
+  else if (dir === 'center') rot = 4;
+
+  const rad = Math.abs(rot) * (Math.PI / 180);
+  /* چرخش دور پایین سر را پایین می‌کشد — جبران برای ماندن داخل دروازه */
+  const tiltLift = Math.round(keeperH * (1 - Math.cos(rad)));
+
+  return {
+    x: Math.round(x),
+    rise: Math.round(rise),
+    rot,
+    tiltLift,
+    high: highDir,
+  };
+}
+
+function animKeeper(dir, zone) {
+  stopKeeperAnims();
   keeperEl.classList.remove('idle');
-  keeperEl.style.setProperty('--dive-dur', DIVE_DUR[diff] + 's');
-  /* حذف کلاس‌های قبلی */
-  for (const c of Object.values(DIVE_CLASS)) keeperEl.classList.remove(c);
-  void keeperEl.offsetWidth; /* reflow */
-  keeperEl.classList.add(DIVE_CLASS[dir] || 'stand-center');
+  keeperEl.classList.add('diving');
+  keeperEl.classList.remove('leap-high');
+
+  const motion = keeperDiveMotion(dir, zone);
+  if (motion.high) keeperEl.classList.add('leap-high');
+
+  const dur = DIVE_DUR[diff];
+  const ease = 'cubic-bezier(0.12, 0.9, 0.2, 1)';
+
+  keeperWrap.style.bottom = '4px';
+  keeperWrap.style.transform = 'translate(0px, 0px)';
+  keeperEl.style.transform = 'translateY(0px) rotate(0deg) scale(1)';
+
+  keeperAnims.push(
+    keeperWrap.animate(
+      [
+        { transform: 'translate(0px, 0px)' },
+        {
+          transform: `translate(${motion.x}px, ${-motion.rise}px)`,
+        },
+      ],
+      { duration: dur, fill: 'forwards', easing: ease },
+    ),
+  );
+
+  const scale = motion.high ? 1.06 : 1;
+  const lift = motion.tiltLift || 0;
+  keeperAnims.push(
+    keeperEl.animate(
+      [
+        { transform: 'translateY(0px) rotate(0deg) scale(1)' },
+        {
+          transform: `translateY(${-lift}px) rotate(${motion.rot}deg) scale(${scale})`,
+        },
+      ],
+      { duration: dur, fill: 'forwards', easing: ease },
+    ),
+  );
+}
+
+function stopKeeperAnims() {
+  keeperAnims.forEach((a) => {
+    try {
+      a.cancel();
+    } catch (e) {}
+  });
+  keeperAnims = [];
 }
 
 function resetKeeper() {
+  stopKeeperAnims();
+  keeperWrap.style.bottom = '4px';
+  keeperWrap.style.transform = 'translate(0px, 0px)';
+  keeperEl.style.transform = '';
+  keeperEl.classList.remove('diving', 'leap-high');
   for (const c of Object.values(DIVE_CLASS)) keeperEl.classList.remove(c);
-  keeperEl.classList.remove('idle');
   void keeperEl.offsetWidth;
   keeperEl.classList.add('idle');
 }
@@ -360,20 +492,25 @@ function resetKeeper() {
 /* ════════════════════════════════════════
    RESULT
 ════════════════════════════════════════ */
-function applyResult(z, saved) {
+function applyResult(z, saved, keeperDir) {
+  const isTop = z === 0 || z === 1 || z === 2;
+  const keeperHigh =
+    keeperDir === 'center-up' || keeperDir === 'left-up' || keeperDir === 'right-up';
+
   if (saved) {
     misses++;
     sfEl.classList.add('show');
-    const saveLines = [
-      ['🧤', 'دفع شد!', 'دروازه‌بان خوندتت!'],
-      ['🦅', 'پرواز کرد!', 'چه رفلکسی داره!'],
-      ['🧤', 'نه عزیزم!', 'یه زاویه دیگه امتحان کن'],
-      ['✋', 'بلاک!', 'کیپر دیوار بود!'],
-    ];
-    const r = pick(saveLines);
-    showMsg('save', r[0], r[1], r[2]);
+    let title = 'دفع شد';
+    let sub = 'دروازه‌بان به توپ رسید.';
+    if (isTop && keeperHigh) {
+      sub = 'پرید بالا و توپ را گرفت.';
+    } else if (isTop && !keeperHigh) {
+      sub = 'توپ بالا بود؛ با reflex دفع شد.';
+    } else if (!isTop && keeperHigh) {
+      sub = 'مسیر را اشتباه خواند ولی توپ را نگه داشت.';
+    }
+    showMsg('save', '', title, sub);
     markDot(shots - 1, 'sd');
-    /* goal flash خاموشه */
     goalEl.classList.remove('flash');
   } else {
     goals++;
@@ -381,34 +518,24 @@ function applyResult(z, saved) {
     fieldEl.classList.add('field-goal-shake');
     setTimeout(() => fieldEl.classList.remove('field-goal-shake'), 380);
     setTimeout(() => goalEl.classList.remove('flash'), 500);
-    const gl = {
-      0: [
-        ['↖️', 'گوشه بالا-چپ!', 'دقیق!'],
-        ['💎', 'گوشه سخت!', 'کلاسیک!'],
-      ],
-      1: [
-        ['⬆️', 'بالا وسط!', 'جسور بودی!'],
-        ['🎯', 'مستقیم بالا!', ''],
-      ],
-      2: [
-        ['↗️', 'گوشه بالا-راست!', 'ضربه دقیق!'],
-        ['🔥', 'گوشه!', 'کیپر شانسی نداشت!'],
-      ],
-      3: [
-        ['⬅️', 'پایین-چپ!', 'زمینی!'],
-        ['💪', 'گوشه پایین!', ''],
-      ],
-      4: [
-        ['⚽', 'گل وسط!', 'ریسک کردی!'],
-        ['😤', 'جرات داشتی!', 'وسط رو زدی!'],
-      ],
-      5: [
-        ['➡️', 'پایین-راست!', 'تمیز!'],
-        ['🚀', 'گل!', 'چه شوتی!'],
-      ],
+
+    const titles = {
+      0: 'گل — گوشه بالا چپ',
+      1: 'گل — بالای دروازه',
+      2: 'گل — گوشه بالا راست',
+      3: 'گل — پایین چپ',
+      4: 'گل — وسط پایین',
+      5: 'گل — پایین راست',
     };
-    const r = pick(gl[z] || [['⚽', 'گل!', '']]);
-    showMsg('goal', r[0], r[1], r[2]);
+    let sub = 'توپ داخل دروازه است.';
+    if (isTop && !keeperHigh) {
+      sub = 'شوت به ارتفاع بالا رفت؛ دروازه‌بان به موقع نرسید.';
+    } else if (isTop && keeperHigh) {
+      sub = 'دروازه‌بان جهت را درست رفت ولی دیر بود.';
+    } else if (!isTop && keeperHigh) {
+      sub = 'کیپر به سمت بالا رفت؛ توپ زمین خورد.';
+    }
+    showMsg('goal', '', titles[z] || 'گل', sub);
     markDot(shots - 1, 'gd');
   }
   updateScore();
@@ -417,11 +544,6 @@ function applyResult(z, saved) {
 /* ════════════════════════════════════════
    DISCOUNT CODE SYSTEM
 ════════════════════════════════════════ */
-const DISCOUNT_RULES = {
-  hard: { pct: 5, minGoals: 5, maxAmount: 1500000 }, // سقف ۱.۵ میلیون تومان
-  medium: { pct: 5, minGoals: 5, maxAmount: 1000000 }, // سقف ۱ میلیون تومان
-  easy: { pct: 5, minGoals: 5, maxAmount: 700000 }, // سقف ۷۰۰ هزار تومان
-};
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function generateCode(discountPct) {
@@ -440,6 +562,65 @@ function saveDiscount(code, pct, maxAmount) {
   } catch (e) {}
   store[code] = { pct, maxAmount, used: false, exp: Date.now() + WEEK_MS };
   localStorage.setItem(key, JSON.stringify(store));
+}
+
+async function issuePenaltyDiscountFromServer(rule) {
+  try {
+    const res = await fetch('/api/discounts/penalty-reward', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ difficulty: diff, goalsScored: goals }),
+    });
+    const data = await res.json();
+    if (data.success && data.code) {
+      return {
+        code: data.code,
+        pct: data.percent != null ? data.percent : rule.discountPercent,
+        maxAmount:
+          data.maxDiscountAmount != null
+            ? data.maxDiscountAmount
+            : rule.discountFixedCap,
+      };
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function renderPenaltyDiscountBox(rule, discountBox) {
+  discountBox.innerHTML =
+    '<div style="font-size:12px;color:var(--muted)">در حال صدور کد تخفیف…</div>';
+  discountBox.style.display = 'block';
+
+  let code;
+  let pct = rule.discountPercent;
+  let maxAmount = rule.discountFixedCap;
+  const fromServer = await issuePenaltyDiscountFromServer(rule);
+  if (fromServer) {
+    code = fromServer.code;
+    pct = fromServer.pct;
+    maxAmount = fromServer.maxAmount;
+  } else {
+    code = generateCode(pct);
+  }
+  saveDiscount(code, pct, maxAmount);
+
+  const expDate = new Date(Date.now() + WEEK_MS);
+  const expStr = expDate.toLocaleDateString('fa-IR');
+  const maxStr = fa(maxAmount.toLocaleString('en-US'));
+
+  discountBox.innerHTML =
+    '<div style="font-size:13px;color:var(--body);margin-bottom:8px">کد تخفیف رزرو</div>' +
+    '<div class="discount-code-val" id="discCodeVal">' +
+    code +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">در پرداخت وارد کنید · تا ' +
+    expStr +
+    ' — ' +
+    fa(pct) +
+    '٪ تخفیف · سقف ' +
+    maxStr +
+    ' تومان</div>' +
+    '<button onclick="copyDiscCode()" style="margin-top:10px;padding:7px 18px;background:var(--green);color:#04100a;border:none;border-radius:8px;font-family:\'Vazirmatn\',sans-serif;font-size:12px;font-weight:700;cursor:pointer">کپی کد</button>';
 }
 
 /* ════════════════════════════════════════
@@ -479,41 +660,21 @@ function showFinal() {
   $('fScore').textContent = fa(goals) + ' از ' + fa(MAX);
   $('fSub').textContent = sub;
 
-  /* ── کد تخفیف ── */
-  const rule = DISCOUNT_RULES[diff];
+  const rewards = loadPenaltyRewards();
+  const rule = rewards[diff] || DEFAULT_PENALTY_REWARDS[diff];
   const discountBox = $('fDiscountBox');
   if (goals >= rule.minGoals) {
-    const code = generateCode(rule.pct);
-    saveDiscount(code, rule.pct, rule.maxAmount);
-
-    const expDate = new Date(Date.now() + WEEK_MS);
-    const expStr = expDate.toLocaleDateString('fa-IR');
-    const maxStr = fa(rule.maxAmount.toLocaleString('en-US'));
-
-    discountBox.innerHTML =
-      '<div style="font-size:13px;color:var(--body);margin-bottom:8px">🎁 کد تخفیف رزرو:</div>' +
-      '<div class="discount-code-val" id="discCodeVal">' +
-      code +
-      '</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-top:6px">⏳ تا ' +
-      expStr +
-      ' معتبر — ' +
-      fa(rule.pct) +
-      '٪ تخفیف (سقف ' +
-      maxStr +
-      ' تومان)</div>' +
-      '<button onclick="copyDiscCode()" style="margin-top:10px;padding:7px 18px;background:var(--green);color:#04100a;border:none;border-radius:8px;font-family:\'Vazirmatn\',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:background .2s" onmouseover="this.style.background=\'var(--gd)\'" onmouseout="this.style.background=\'var(--green)\'">کپی کد 📋</button>';
-    discountBox.style.display = 'block';
+    void renderPenaltyDiscountBox(rule, discountBox);
   } else {
-    /* نشون بده چقدر مونده */
     const need = rule.minGoals - goals;
     discountBox.innerHTML =
-      '<div style="font-size:12px;color:var(--muted)">' +
-      '🎯 ' +
+      '<div style="font-size:12px;color:var(--muted);line-height:1.6">' +
       fa(need) +
-      ' گل دیگه بزن تا ' +
-      fa(rule.pct) +
-      '٪ تخفیف رزرو بگیری!</div>';
+      ' گل دیگر تا کد ' +
+      fa(rule.discountPercent) +
+      '٪ (سقف ' +
+      fa(rule.discountFixedCap.toLocaleString('en-US')) +
+      ' تومان)</div>';
     discountBox.style.display = 'block';
   }
 
@@ -552,10 +713,12 @@ function suggestDiff() {
    HELPERS
 ════════════════════════════════════════ */
 function showMsg(type, emoji, title, sub) {
-  $('msgEmoji').textContent = emoji;
+  const em = $('msgEmoji');
+  em.textContent = emoji || '';
+  em.style.display = emoji ? 'block' : 'none';
   $('msgTitle').textContent = title;
   $('msgTitle').className = 'msg-title ' + type;
-  $('msgSub').textContent = sub;
+  $('msgSub').textContent = sub || '';
   msgOv.classList.add('show');
 }
 

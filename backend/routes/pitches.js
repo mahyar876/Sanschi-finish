@@ -3,6 +3,13 @@ const router = express.Router();
 const Pitch = require('../models/Pitch');
 const DailyAvailability = require('../models/DailyAvailability');
 const { protect, adminOnly } = require('../middleware/authController');
+const {
+  expireStaleForDaily,
+  normalizeSlot,
+  SLOT_STATUS,
+} = require('../services/slotService');
+const { isSlotPast, todayJalaliApiDate } = require('../lib/jalaliTime');
+const { applyLastMinuteToSlot } = require('../services/lastMinutePricing');
 
 function adminSecret(req, res, next) {
   const secret = process.env.ADMIN_SECRET;
@@ -72,6 +79,88 @@ router.get('/', async (req, res) => {
 });
 
 // ─────────────────────────────────────
+// GET /api/pitches/flash-deals — سانس‌های امروز با تخفیف لحظه‌آخر
+// ─────────────────────────────────────
+router.get('/flash-deals', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 12, 24);
+    const date = req.query.date || todayJalaliApiDate();
+    const now = new Date();
+    const pitches = await Pitch.find({ isActive: true });
+    const deals = [];
+
+    for (const pitch of pitches) {
+      let daily = await DailyAvailability.findOne({ pitch: pitch._id, date });
+      const pitchComm = pitch.commissionAmount || 0;
+      if (!daily) {
+        const slots = pitch.slots.map((s, i) => ({
+          slotIndex: i,
+          time: s.time,
+          price: s.price,
+          taken: false,
+          slotStatus: SLOT_STATUS.FREE,
+        }));
+        daily = await DailyAvailability.create({ pitch: pitch._id, date, slots });
+      }
+      await expireStaleForDaily(daily);
+      daily = await DailyAvailability.findById(daily._id);
+
+      for (const s of daily.slots) {
+        const sObj = normalizeSlot(s, now);
+        if (sObj.taken || sObj.blocked || sObj.slotStatus === SLOT_STATUS.BOOKED) continue;
+        if (isSlotPast(date, sObj.time, now)) continue;
+
+        const baseSite = s.price + pitchComm;
+        const lm = applyLastMinuteToSlot(baseSite, date, sObj.time, pitch, now);
+        if (!lm.flashDeal) continue;
+
+        deals.push({
+          pitchId: pitch._id.toString(),
+          pitchName: pitch.name,
+          date,
+          slotIndex: sObj.slotIndex,
+          time: sObj.time,
+          sitePrice: lm.sitePrice,
+          originalSitePrice: lm.originalSitePrice,
+          discountPercent: lm.discountPercent,
+          urgency: lm.urgency,
+          minutesUntil: lm.hoursUntil,
+        });
+      }
+    }
+
+    deals.sort((a, b) => {
+      const ua = a.urgency === '30m' ? 0 : 1;
+      const ub = b.urgency === '30m' ? 0 : 1;
+      if (ua !== ub) return ua - ub;
+      return (a.minutesUntil ?? 999) - (b.minutesUntil ?? 999);
+    });
+
+    res.json({ success: true, date, deals: deals.slice(0, limit) });
+  } catch (err) {
+    console.error('GET /flash-deals error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// GET /api/pitches/:id/reviews
+// ─────────────────────────────────────
+router.get('/:id/reviews', async (req, res) => {
+  try {
+    const Review = require('../models/Review');
+    const reviews = await Review.find({ pitch: req.params.id })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select('rating text createdAt')
+      .lean();
+    res.json({ success: true, reviews });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
 // GET /api/pitches/:id
 // ─────────────────────────────────────
 router.get('/:id', async (req, res) => {
@@ -111,7 +200,7 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/slots', async (req, res) => {
   try {
     const pitch = await Pitch.findById(req.params.id).select(
-      'slots name commissionAmount',
+      'slots name commissionAmount lastMinuteEnabled lastMinuteDiscount60 lastMinuteDiscount30 lastMinuteMaxPct',
     );
     if (!pitch)
       return res.status(404).json({ success: false, message: 'زمین پیدا نشد' });
@@ -149,6 +238,7 @@ router.get('/:id/slots', async (req, res) => {
         taken: false,
         takenBy: null,
         reservationId: null,
+        slotStatus: SLOT_STATUS.FREE,
       }));
       daily = await DailyAvailability.create({
         pitch: req.params.id,
@@ -157,13 +247,44 @@ router.get('/:id/slots', async (req, res) => {
       });
     }
 
-    // اگه daily از قبل وجود داشت، sitePrice با pitchComm بساز
+    await expireStaleForDaily(daily);
+    daily = await DailyAvailability.findById(daily._id);
+
+    const now = new Date();
     const slots = daily.slots.map((s) => {
-      const sObj = s.toObject ? s.toObject() : { ...s };
+      const sObj = normalizeSlot(s, now);
+      let displayStatus = sObj.blocked
+        ? SLOT_STATUS.BLOCKED
+        : sObj.slotStatus || (sObj.taken ? SLOT_STATUS.BOOKED : SLOT_STATUS.FREE);
+      if (isSlotPast(date, sObj.time, now)) {
+        displayStatus = SLOT_STATUS.PAST;
+      }
+      const bookable =
+        displayStatus === SLOT_STATUS.FREE && !sObj.taken && !sObj.blocked;
+      let sitePrice = s.price + pitchComm;
+      let originalSitePrice;
+      let discountPercent = 0;
+      let flashDeal = false;
+      let urgency;
+      if (bookable) {
+        const lm = applyLastMinuteToSlot(sitePrice, date, sObj.time, pitch, now);
+        sitePrice = lm.sitePrice;
+        originalSitePrice = lm.originalSitePrice;
+        discountPercent = lm.discountPercent || 0;
+        flashDeal = lm.flashDeal || false;
+        urgency = lm.urgency;
+      }
       return {
         ...sObj,
         commission: pitchComm,
-        sitePrice: s.price + pitchComm,
+        sitePrice,
+        originalSitePrice,
+        discountPercent,
+        flashDeal,
+        urgency,
+        displayStatus,
+        bookable,
+        lockUntil: sObj.lockUntil || null,
       };
     });
 

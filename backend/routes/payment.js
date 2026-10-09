@@ -26,8 +26,15 @@
 const express = require('express');
 const router = express.Router();
 const Reservation = require('../models/Reservation');
-const Pitch = require('../models/Pitch');
+const DailyAvailability = require('../models/DailyAvailability');
 const { protect } = require('../middleware/authController');
+const { confirmReservationPayment } = require('../services/paymentConfirm');
+const {
+  expireStaleForDaily,
+  BOOKING_STATUS,
+  PAYMENT_STATUS,
+} = require('../services/slotService');
+const { verifyPayment } = require('../services/zarinpalClient');
 
 // ── تنظیمات ──
 const MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID || '';
@@ -49,14 +56,10 @@ function toGatewayAmount(toman) {
   return CURRENCY === 'toman' ? toman : toman * 10;
 }
 
-// کمیسیون ثابت زمین
-function getPitchCommission(pitch) {
-  return (pitch && pitch.commissionAmount) || 0;
-}
-
 // ════════════════════════════════════════════════════════════════
 // POST /api/payment/zarinpal/request   🔒
-// body: { reservationId?, recurringGroupId?, amount, discount?, returnQuery? }
+// body: { reservationId?, recurringGroupId?, returnQuery? }
+// مبلغ فقط از رزرو(های) دیتابیس — نه از کلاینت
 // ════════════════════════════════════════════════════════════════
 router.post('/zarinpal/request', protect, async (req, res) => {
   try {
@@ -67,14 +70,7 @@ router.post('/zarinpal/request', protect, async (req, res) => {
       });
     }
 
-    const { reservationId, recurringGroupId, amount, returnQuery } = req.body;
-
-    const finalToman = parseInt(amount);
-    if (!finalToman || finalToman < 1000) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'مبلغ نامعتبر است' });
-    }
+    const { reservationId, recurringGroupId, returnQuery } = req.body;
 
     // ── پیدا کردن رزرو(های) مربوطه و بررسی مالکیت ──
     let reservations = [];
@@ -102,10 +98,43 @@ router.post('/zarinpal/request', protect, async (req, res) => {
         .status(403)
         .json({ success: false, message: 'دسترسی ندارید' });
     }
-    if (reservations.every((r) => r.status === 'paid')) {
+    if (reservations.every((r) => r.paymentStatus === PAYMENT_STATUS.SUCCESSFUL)) {
       return res
         .status(400)
         .json({ success: false, message: 'این رزرو قبلاً پرداخت شده است' });
+    }
+
+    for (const r of reservations) {
+      const daily = await DailyAvailability.findOne({
+        pitch: r.pitch,
+        date: r.date,
+      });
+      if (daily) await expireStaleForDaily(daily);
+      const fresh = await Reservation.findById(r._id);
+      if (fresh.bookingStatus === BOOKING_STATUS.EXPIRED) {
+        return res.status(410).json({
+          success: false,
+          message:
+            'زمان پرداخت به پایان رسیده و سانس آزاد شده است. سانس جدید انتخاب کنید.',
+        });
+      }
+      if (
+        fresh.lockExpiresAt &&
+        new Date(fresh.lockExpiresAt) <= new Date() &&
+        fresh.bookingStatus === BOOKING_STATUS.PENDING_PAYMENT
+      ) {
+        return res.status(410).json({
+          success: false,
+          message: 'زمان پرداخت شما به پایان رسیده است.',
+        });
+      }
+    }
+
+    const finalToman = reservations.reduce((s, r) => s + (r.amount || 0), 0);
+    if (!finalToman || finalToman < 1000) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'مبلغ رزرو نامعتبر است' });
     }
 
     const gatewayAmount = toGatewayAmount(finalToman);
@@ -167,7 +196,7 @@ router.get('/zarinpal/callback', async (req, res) => {
 
   // آدرس بازگشت به فرانت (با حفظ پارامترهای رزرو اصلی که در rq آمده‌اند)
   const buildRedirect = (extra) => {
-    const base = `${FRONTEND_URL}/pages/payment.html`;
+    const base = `${FRONTEND_URL}/payment`;
     let q = rq || '';
     if (q && !q.startsWith('?')) q = '?' + q;
     const sep = q ? '&' : '?';
@@ -209,26 +238,14 @@ router.get('/zarinpal/callback', async (req, res) => {
       return res.redirect(buildRedirect('payResult=failed'));
     }
 
-    const refId = vData.data.ref_id || '';
+    const refId = String(vData.data.ref_id || '');
 
-    // ── علامت‌گذاری رزرو(ها) به‌عنوان paid (همان منطق /reservations/pay) ──
-    // کمیسیون هر رزرو از روی زمین خودش snapshot می‌شود.
-    const pitchCache = {};
     for (const r of reservations) {
-      if (r.status === 'paid') continue;
-      const pid = r.pitch.toString();
-      if (!(pid in pitchCache)) {
-        const pitch = await Pitch.findById(r.pitch).select('commissionAmount');
-        pitchCache[pid] = getPitchCommission(pitch);
+      try {
+        await confirmReservationPayment(r, refId, 'zarinpal');
+      } catch (e) {
+        console.error('confirm after ZP:', e.message);
       }
-      const commission = pitchCache[pid];
-      r.status = 'paid';
-      r.payment.transactionId = 'ZP-' + refId;
-      r.payment.method = 'zarinpal';
-      r.payment.paidAt = new Date();
-      r.siteCommission = commission;
-      r.pitchAmount = Math.max(0, r.amount - commission);
-      await r.save();
     }
 
     const code = reservations[0].code || '';
@@ -240,6 +257,80 @@ router.get('/zarinpal/callback', async (req, res) => {
   } catch (err) {
     console.error('zarinpal/callback error:', err);
     return res.redirect(buildRedirect('payResult=failed'));
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// POST /api/payment/zarinpal/sync   🔒
+// همگام‌سازی وضعیت پرداخت (قطع اینترنت / callback ناقص)
+// body: { reservationId } یا { recurringGroupId }
+// ════════════════════════════════════════════════════════════════
+router.post('/zarinpal/sync', protect, async (req, res) => {
+  try {
+    const { reservationId, recurringGroupId } = req.body;
+    let list = [];
+    if (recurringGroupId) {
+      list = await Reservation.find({
+        recurringGroupId,
+        user: req.user._id,
+      });
+    } else if (reservationId) {
+      const r = await Reservation.findById(reservationId);
+      if (r && r.user.toString() === req.user._id.toString()) list = [r];
+    }
+    if (!list.length) {
+      return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
+    }
+
+    const authority = list[0].payment?.authority;
+    if (!authority) {
+      return res.json({
+        success: true,
+        synced: false,
+        paymentStatus: list[0].paymentStatus,
+        message: 'تراکنش درگاهی برای این رزرو ثبت نشده',
+      });
+    }
+
+    if (list.every((r) => r.paymentStatus === PAYMENT_STATUS.SUCCESSFUL)) {
+      return res.json({
+        success: true,
+        synced: true,
+        paymentStatus: PAYMENT_STATUS.SUCCESSFUL,
+        code: list[0].code,
+      });
+    }
+
+    const gatewayAmount =
+      list[0].payment.gatewayAmount ||
+      toGatewayAmount(list.reduce((s, r) => s + r.amount, 0));
+
+    const vData = await verifyPayment(authority, gatewayAmount);
+    const okCode =
+      vData.data && (vData.data.code === 100 || vData.data.code === 101);
+    if (!okCode) {
+      return res.json({
+        success: true,
+        synced: false,
+        paymentStatus: PAYMENT_STATUS.UNKNOWN,
+        message: 'پرداخت در درگاه تأیید نشد',
+      });
+    }
+
+    const refId = String(vData.data.ref_id || '');
+    for (const r of list) {
+      await confirmReservationPayment(r, refId, 'zarinpal');
+    }
+    return res.json({
+      success: true,
+      synced: true,
+      paymentStatus: PAYMENT_STATUS.SUCCESSFUL,
+      code: list[0].code,
+      refId,
+    });
+  } catch (err) {
+    console.error('zarinpal/sync error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
   }
 });
 

@@ -139,7 +139,7 @@
       .field {
         position: relative;
         flex: 1;
-        overflow: hidden;
+        overflow: visible;
         background: linear-gradient(170deg, #0b3014 0%, #071a09 100%);
         display: flex;
         align-items: center;
@@ -175,7 +175,7 @@
         transform: translateX(-50%);
         width: min(62vw, 320px);
         height: min(28vh, 140px);
-        overflow: visible;
+        overflow: hidden;
       }
       .goal-frame {
         position: absolute;
@@ -273,27 +273,28 @@
         font-weight: 700;
       }
 
-      /* ── KEEPER ── */
+      /* ── KEEPER (داخل چهارچوب دروازه) ── */
       .keeper-wrap {
         position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 100%;
+        bottom: 4px;
+        left: 50%;
+        margin-left: -24px;
+        width: 48px;
         pointer-events: none;
-        z-index: 10;
-        display: flex;
-        align-items: flex-end;
-        justify-content: center;
-        padding-bottom: 4px;
+        z-index: 11;
+        will-change: transform;
       }
       .keeper {
         position: relative;
         width: 44px;
-        transition: transform 0.08s ease;
         display: flex;
         flex-direction: column;
         align-items: center;
+        transform-origin: 50% 100%;
+        will-change: transform;
+      }
+      .keeper.diving {
+        animation: none !important;
       }
       /* idle sway */
       .keeper.idle {
@@ -332,35 +333,97 @@
           forwards;
       }
 
+      .keeper {
+        transform-origin: 50% 100%;
+      }
+
       @keyframes diveL {
         to {
-          transform: translateX(-100px) rotate(35deg);
+          transform: translateX(calc(-1 * var(--dive-side, 88px))) rotate(32deg);
         }
       }
       @keyframes diveR {
         to {
-          transform: translateX(100px) rotate(-35deg);
+          transform: translateX(var(--dive-side, 88px)) rotate(-32deg);
         }
       }
       @keyframes diveU {
         to {
-          transform: translateY(-38px) scaleX(1.1);
+          transform: translateY(calc(-1 * var(--dive-rise, 78px))) scale(1.08, 1.14);
         }
       }
       @keyframes diveLU {
         to {
-          transform: translate(-75px, -30px) rotate(25deg);
+          transform: translate(
+              calc(-1 * var(--dive-side, 72px)),
+              calc(-1 * var(--dive-rise, 78px))
+            )
+            rotate(22deg);
         }
       }
       @keyframes diveRU {
         to {
-          transform: translate(75px, -30px) rotate(-25deg);
+          transform: translate(
+              var(--dive-side, 72px),
+              calc(-1 * var(--dive-rise, 78px))
+            )
+            rotate(-22deg);
         }
       }
       @keyframes standC {
         to {
-          transform: translateY(-6px) scaleX(1.08);
+          transform: translateY(calc(-1 * var(--dive-rise-low, 12px))) scaleX(1.06);
         }
+      }
+
+      .keeper.leap-high .keeper-body {
+        transform: scaleY(1.04);
+        transform-origin: bottom center;
+      }
+      .keeper-arms {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        width: 52px;
+        height: 32px;
+        margin-left: -26px;
+        pointer-events: none;
+      }
+      .keeper-arms .arm {
+        position: absolute;
+        bottom: 0;
+        width: 7px;
+        height: 22px;
+        border-radius: 3px;
+        background: linear-gradient(180deg, #fbbf24 0%, #ea580c 85%);
+        transform-origin: bottom center;
+      }
+      .keeper-arms .arm::after {
+        content: '';
+        position: absolute;
+        top: -5px;
+        left: 50%;
+        width: 12px;
+        height: 9px;
+        margin-left: -6px;
+        border-radius: 4px 4px 2px 2px;
+        background: linear-gradient(180deg, #f3f7fb, #cbd5e1);
+        border: 1px solid #94a3b8;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+      }
+      .keeper-arms .arm-l {
+        left: 4px;
+        transform: rotate(-22deg);
+      }
+      .keeper-arms .arm-r {
+        right: 4px;
+        transform: rotate(22deg);
+      }
+      .keeper.leap-high .keeper-arms .arm-l {
+        transform: rotate(-105deg);
+      }
+      .keeper.leap-high .keeper-arms .arm-r {
+        transform: rotate(105deg);
       }
 
       .keeper-head {
@@ -388,36 +451,6 @@
         font-weight: 900;
         color: #04100a;
       }
-      /* gloves */
-      .keeper-gloves {
-        position: absolute;
-        bottom: 18px;
-        display: flex;
-        gap: 50px;
-      }
-      .glove {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: #e8e8e8;
-        border: 1px solid #ccc;
-        transition: transform 0.15s;
-      }
-      .keeper.dive-left .glove.left,
-      .keeper.dive-left-up .glove.left {
-        transform: translateX(-8px) translateY(-4px);
-      }
-      .keeper.dive-right .glove.right,
-      .keeper.dive-right-up .glove.right {
-        transform: translateX(8px) translateY(-4px);
-      }
-      .keeper.dive-up .glove.left,
-      .keeper.dive-up .glove.right,
-      .keeper.stand-center .glove.left,
-      .keeper.stand-center .glove.right {
-        transform: translateY(-10px);
-      }
-
       /* ── BALL ── */
       .ball {
         position: absolute;
@@ -572,50 +605,51 @@
         backdrop-filter: blur(4px);
       }
 
-      /* ── MSG OVERLAY ── */
+      /* ── نتیجه شوت (نوار پایین زمین، نه پاپ‌آپ وسط) ── */
       .msg-ov {
         position: absolute;
-        inset: 0;
+        inset: auto 0 18% 0;
         z-index: 40;
         display: flex;
-        align-items: center;
+        align-items: flex-end;
         justify-content: center;
+        padding: 0 12px;
         pointer-events: none;
         opacity: 0;
-        transition: opacity 0.15s;
+        transform: translateY(8px);
+        transition:
+          opacity 0.2s ease,
+          transform 0.2s ease;
       }
       .msg-ov.show {
         opacity: 1;
-        pointer-events: auto;
+        transform: translateY(0);
       }
       .msg-box {
-        background: rgba(7, 16, 13, 0.9);
+        background: rgba(7, 16, 13, 0.88);
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 20px 32px;
+        border-radius: 10px;
+        padding: 10px 16px;
         text-align: center;
-        backdrop-filter: blur(14px);
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-        animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        max-width: min(340px, 92vw);
       }
       @keyframes popIn {
         from {
-          transform: scale(0.7);
           opacity: 0;
         }
         to {
-          transform: scale(1);
           opacity: 1;
         }
       }
       .msg-emoji {
-        font-size: 38px;
-        display: block;
-        margin-bottom: 4px;
+        display: none;
       }
       .msg-title {
-        font-size: 21px;
-        font-weight: 900;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
       }
       .msg-title.goal {
         color: var(--green);
@@ -627,9 +661,13 @@
         color: var(--red);
       }
       .msg-sub {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--body);
-        margin-top: 3px;
+        margin-top: 4px;
+        line-height: 1.55;
+      }
+      .msg-sub:empty {
+        display: none;
       }
 
       /* saved highlight on goal */

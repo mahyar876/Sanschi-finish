@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { OwnerView } from '@/components/views/OwnerView';
+import { OwnerDashboardView } from '@/components/views/owner/OwnerDashboardView';
 
 export const metadata: Metadata = {
-  title: 'پنل مالک',
+  title: 'داشبورد مالک',
   robots: { index: false },
 };
 
 export default function OwnerPage() {
-  return <OwnerView />;
+  return <OwnerDashboardView />;
 }

@@ -1,0 +1,28 @@
+# Render Blueprint — API Express (پلن رایگان)
+# https://dashboard.render.com/select-repo?type=blueprint
+services:
+  - type: web
+    name: sanschi-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URI
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SMS_ENABLED
+        value: 'false'
+      - key: ALLOW_MOCK_PAY
+        value: 'true'
+      - key: ZARINPAL_SANDBOX
+        value: 'true'

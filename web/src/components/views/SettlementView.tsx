@@ -1,22 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DashboardShell } from '@/components/DashboardShell';
+import {
+  ActionsPanel,
+  DataSection,
+  PageIntro,
+} from '@/components/dashboard/DashboardPageBlocks';
 import { apiFetch } from '@/lib/fetch-api';
+import { getDemoSettlements } from '@/lib/demo-dashboard';
+import { isDemoFrontend } from '@/lib/demo';
 import { getUser } from '@/lib/session';
 import { priceFa } from '@/lib/format';
-
-const ownerNav = [
-  { href: '/owner', label: 'رزروها' },
-  { href: '/finance', label: 'گزارش مالی' },
-  { href: '/settlement', label: 'تسویه' },
-];
-
-const adminNav = [
-  { href: '/admin', label: 'مدیریت' },
-  { href: '/admin/finance', label: 'مالی کل' },
-  { href: '/settlement', label: 'تسویه‌ها' },
-];
 
 type Settlement = {
   _id: string;
@@ -36,10 +30,16 @@ export function SettlementView() {
   const [msg, setMsg] = useState('');
 
   function load() {
+    if (isDemoFrontend()) {
+      setRows(getDemoSettlements());
+      return;
+    }
     const path = isAdmin ? '/settlements' : '/settlements/my';
-    void apiFetch<{ success: boolean; settlements: Settlement[] }>(path).then((d) => {
-      if (d.success) setRows(d.settlements);
-    });
+    void apiFetch<{ success: boolean; settlements: Settlement[] }>(path)
+      .then((d) => {
+        if (d.success) setRows(d.settlements);
+      })
+      .catch(() => setRows(getDemoSettlements()));
   }
 
   useEffect(() => {
@@ -63,20 +63,20 @@ export function SettlementView() {
       setMsg(data.message || 'ثبت شد');
       load();
     } catch (e) {
+      if (isDemoFrontend()) {
+        setMsg('درخواست تسویه (نمایشی) ثبت شد');
+        setRows(getDemoSettlements());
+        return;
+      }
       setMsg(e instanceof Error ? e.message : 'خطا');
     }
   }
 
   return (
-    <DashboardShell
-      title="تسویه مالی"
-      subtitle="درخواست و پیگیری تسویه با سانس‌چی"
-      nav={isAdmin ? adminNav : ownerNav}
-      requireRole={isAdmin ? 'admin' : 'any'}
-    >
+    <>
+      <PageIntro title="تسویه مالی" description="درخواست و پیگیری تسویه با سانس‌چی" />
       {!isAdmin && (
-        <div className="panel" style={{ marginBottom: '1.25rem' }}>
-          <h2>درخواست تسویه بازه‌ای</h2>
+        <ActionsPanel title="درخواست تسویه بازه‌ای">
           <div className="field">
             <label>از تاریخ (۱۴۰۴/01/01)</label>
             <input value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -89,9 +89,10 @@ export function SettlementView() {
             ثبت درخواست
           </button>
           {msg && <p className="form-msg ok">{msg}</p>}
-        </div>
+        </ActionsPanel>
       )}
 
+      <DataSection title="لیست تسویه">
       <div className="data-table-wrap">
         <table className="data-table">
           <thead>
@@ -125,6 +126,7 @@ export function SettlementView() {
           </tbody>
         </table>
       </div>
-    </DashboardShell>
+      </DataSection>
+    </>
   );
 }
