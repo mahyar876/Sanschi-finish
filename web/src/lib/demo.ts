@@ -1,10 +1,26 @@
 import { setSession, type SessionUser } from '@/lib/session';
 
-/** حالت نمایشی: بدون NEXT_PUBLIC_API_URL یا با NEXT_PUBLIC_DEMO_MODE=true */
+/**
+ * حالت نمایشی فقط با NEXT_PUBLIC_DEMO_MODE=true.
+ * در dev با پروکسی /api → Express، پیش‌فرض «واقعی» است (قفل سانس روی سرور).
+ */
 export function isDemoFrontend(): boolean {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'false') return false;
-  if (process.env.NEXT_PUBLIC_API_URL) return false;
-  return true;
+  return process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+}
+
+export function isDemoPitchId(pitchId: string): boolean {
+  return pitchId.startsWith('demo-');
+}
+
+/** قفل و رزرو از API + MongoDB (جلوگیری از رزرو همزمان) */
+export function isLiveBookingForPitch(pitchId: string): boolean {
+  if (!pitchId || isDemoFrontend()) return false;
+  return !isDemoPitchId(pitchId);
+}
+
+/** ورود سریع نمایشی روی login و boot پنل — فقط development یا حالت demo */
+export function showDevQuickLogin(): boolean {
+  return isDemoFrontend() || process.env.NODE_ENV === 'development';
 }
 
 export const DEMO_OTP = '1234';

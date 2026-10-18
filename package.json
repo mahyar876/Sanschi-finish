@@ -1,10 +1,16 @@
 {
   "name": "reserve-football",
   "private": true,
-  "description": "فرانت Next.js داخل web — برای Vercel حتماً Root Directory = web",
+  "description": "سانس‌چی — توسعهٔ لوکال (web + backend)",
   "scripts": {
     "dev:web": "npm run dev --prefix web",
+    "dev:backend": "npm run dev --prefix backend",
+    "seed": "node backend/seed.js",
+    "dev": "npm run dev:web",
     "build:web": "npm run build --prefix web",
-    "deploy:web": "npm exec --prefix web -- vercel --prod"
+    "test:backend": "npm run test:assistant --prefix backend && npm run test:gallery-filters --prefix backend",
+    "preview:responsive": "npm run dev --prefix web",
+    "backup:my-future": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-my-future-backup.ps1",
+    "deploy:open": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/open-sanschii-deploy.ps1"
   }
 }

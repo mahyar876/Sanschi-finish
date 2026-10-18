@@ -14,43 +14,43 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
    - اگر حدس درست نزد → دایو کاملاً اشتباه
    - حتی اگه درست رفت، بر اساس سختی و zone دفع می‌کنه
 ════════════════════════════════════════ */
-/** کالیبره‌شده: ~۲۰٪ / ~۱۰٪ / ~۵٪ احتمال ۵ گل از ۵ شوت (شبیه‌سازی) */
+/** کالیبره‌شده (شبیه‌سازی ۱۰۰k بازی): ~۱۸٪ / ~۹٪ / ~۶٪ احتمال ۵ گل از ۵ شوت */
 const DIFF_CFG = {
   easy: {
     label: 'آسان',
     pillClass: 'pill-easy',
-    reactionMs: 280,
-    guessChance: 0.25,
-    saveIfAligned: 1,
-    centerBonus: 0,
-    luckyBlock: 0.02,
-    alwaysSaveWhenAligned: true,
+    reactionMs: 300,
+    guessChance: 0.36,
+    saveIfAligned: 0.72,
+    centerBonus: 0.05,
+    luckyBlock: 0.04,
+    alwaysSaveWhenAligned: false,
   },
   medium: {
     label: 'متوسط',
     pillClass: 'pill-medium',
-    reactionMs: 150,
-    guessChance: 0.5,
-    saveIfAligned: 0.71,
+    reactionMs: 160,
+    guessChance: 0.52,
+    saveIfAligned: 0.68,
     centerBonus: 0.08,
-    luckyBlock: 0.055,
+    luckyBlock: 0.05,
     alwaysSaveWhenAligned: false,
   },
   hard: {
     label: 'سخت',
     pillClass: 'pill-hard',
-    reactionMs: 70,
-    guessChance: 0.73,
-    saveIfAligned: 0.69,
+    reactionMs: 75,
+    guessChance: 0.58,
+    saveIfAligned: 0.62,
     centerBonus: 0.1,
-    luckyBlock: 0.18,
-    topSaveBonus: 0.05,
+    luckyBlock: 0.1,
+    topSaveBonus: 0.04,
     antiPattern: true,
     alwaysSaveWhenAligned: false,
   },
 };
 
-const PENALTY_CONFIG_KEY = 'sanschi_penalty_config';
+const PENALTY_CONFIG_KEY = 'sanschii_penalty_config';
 const DEFAULT_PENALTY_REWARDS = {
   easy: { discountPercent: 5, discountFixedCap: 700000, minGoals: 5 },
   medium: { discountPercent: 5, discountFixedCap: 1000000, minGoals: 5 },
@@ -124,6 +124,7 @@ const DIR_TARGET_ZONE = {
    STATE
 ════════════════════════════════════════ */
 const MAX = 5;
+let penaltySessionId = null;
 let diff = 'easy',
   cfg = DIFF_CFG.easy;
 let shots = 0,
@@ -160,13 +161,31 @@ function openDiffScreen() {
   resetState(false);
 }
 
-function startGame(d) {
+async function startPenaltySession(d) {
+  try {
+    const res = await fetch('/api/discounts/penalty-reward/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ difficulty: d }),
+    });
+    const data = await res.json();
+    if (data.success && data.sessionId) {
+      penaltySessionId = data.sessionId;
+      return true;
+    }
+  } catch (e) {}
+  penaltySessionId = null;
+  return false;
+}
+
+async function startGame(d) {
   diff = d;
   cfg = DIFF_CFG[d];
   const pill = $('diffPill');
   pill.textContent = cfg.label;
   pill.className = 'diff-pill ' + cfg.pillClass;
   diffScr.classList.add('hidden');
+  await startPenaltySession(d);
   resetState(true);
 }
 
@@ -240,7 +259,7 @@ function computeAction(z) {
   const aligned = chosenDir === correctDir;
 
   if (aligned && cfg.alwaysSaveWhenAligned) {
-    return { dir: chosenDir, saved: true };
+    return { dir: chosenDir, saved: true, aligned: true };
   }
 
   let saveP = 0;
@@ -251,12 +270,16 @@ function computeAction(z) {
       saveP += cfg.topSaveBonus || 0;
     }
     if (diff === 'medium' && (z === 0 || z === 2)) saveP -= 0.03;
-  } else {
-    saveP = cfg.luckyBlock;
   }
 
   saveP = Math.max(0, Math.min(0.93, saveP));
-  return { dir: chosenDir, saved: Math.random() < saveP };
+  let saved = Math.random() < saveP;
+
+  /* اگر جهت دایو با محل شوت یکی نیست، دفع معنی ندارد (بدون «سیو شانسی») */
+  if (saved && !aligned) saved = false;
+  if (saved && DIR_TARGET_ZONE[chosenDir] !== z) saved = false;
+
+  return { dir: chosenDir, saved, aligned };
 }
 
 /* ════════════════════════════════════════
@@ -289,16 +312,14 @@ function shoot(z) {
     ? Math.max(40, cfg.reactionMs - 35)
     : cfg.reactionMs;
 
-  const diveDir = ZONE_KEEPER[z];
-
-  /* keeper بعد از تأخیر — همیشه به سمت zone شوت (۶ جهت واضح) */
+  /* دایو همیشه به zone مقصد همان جهت (هم‌خوان با انیمیشن توپ) */
   setTimeout(() => {
-    animKeeper(diveDir, z);
+    animKeeper(action.dir, DIR_TARGET_ZONE[action.dir] ?? z);
   }, reactMs);
 
   /* نتیجه هم‌زمان با رسیدن توپ */
   setTimeout(() => {
-    applyResult(z, action.saved, diveDir);
+    applyResult(z, action.saved, action.dir, action.aligned);
   }, 620);
 
   /* ریست و ادامه */
@@ -401,7 +422,7 @@ function keeperDiveMotion(dir, shotZone) {
     dir === 'center-up' || dir === 'left-up' || dir === 'right-up';
 
   /* مرکز zone نسبت به وسط دروازه (keeper از پایین-وسط شروع می‌کند) */
-  const x = ((pos.x - 50) / 100) * gw * 0.94;
+  const x = ((pos.x - 50) / 100) * gw * 1.05;
   const zoneFromBottom = ((100 - pos.y) / 100) * gh;
   /* سر داخل چهارچوب بماند (بالای دروازه clip نشود) */
   const maxRise = Math.max(8, gh - keeperH - 10);
@@ -492,7 +513,7 @@ function resetKeeper() {
 /* ════════════════════════════════════════
    RESULT
 ════════════════════════════════════════ */
-function applyResult(z, saved, keeperDir) {
+function applyResult(z, saved, keeperDir, aligned) {
   const isTop = z === 0 || z === 1 || z === 2;
   const keeperHigh =
     keeperDir === 'center-up' || keeperDir === 'left-up' || keeperDir === 'right-up';
@@ -501,13 +522,13 @@ function applyResult(z, saved, keeperDir) {
     misses++;
     sfEl.classList.add('show');
     let title = 'دفع شد';
-    let sub = 'دروازه‌بان به توپ رسید.';
+    let sub = 'دروازه‌بان به همان سمت توپ پرید و گرفت.';
     if (isTop && keeperHigh) {
       sub = 'پرید بالا و توپ را گرفت.';
     } else if (isTop && !keeperHigh) {
-      sub = 'توپ بالا بود؛ با reflex دفع شد.';
+      sub = 'بالا رفت و به توپ رسید.';
     } else if (!isTop && keeperHigh) {
-      sub = 'مسیر را اشتباه خواند ولی توپ را نگه داشت.';
+      sub = 'به توپ رسید و دفع کرد.';
     }
     showMsg('save', '', title, sub);
     markDot(shots - 1, 'sd');
@@ -528,12 +549,14 @@ function applyResult(z, saved, keeperDir) {
       5: 'گل — پایین راست',
     };
     let sub = 'توپ داخل دروازه است.';
-    if (isTop && !keeperHigh) {
-      sub = 'شوت به ارتفاع بالا رفت؛ دروازه‌بان به موقع نرسید.';
+    if (!aligned) {
+      sub = 'دروازه‌بان جهت اشتباه رفت — گل!';
+    } else if (isTop && !keeperHigh) {
+      sub = 'جهت درست بود ولی دیر رسید.';
     } else if (isTop && keeperHigh) {
-      sub = 'دروازه‌بان جهت را درست رفت ولی دیر بود.';
+      sub = 'به توپ رسید ولی دفع نشد.';
     } else if (!isTop && keeperHigh) {
-      sub = 'کیپر به سمت بالا رفت؛ توپ زمین خورد.';
+      sub = 'به سمت بالا رفت؛ توپ پایین رفت.';
     }
     showMsg('goal', '', titles[z] || 'گل', sub);
     markDot(shots - 1, 'gd');
@@ -555,7 +578,7 @@ function generateCode(discountPct) {
 }
 
 function saveDiscount(code, pct, maxAmount) {
-  const key = 'sanschi_discounts';
+  const key = 'sanschii_discounts';
   let store = {};
   try {
     store = JSON.parse(localStorage.getItem(key) || '{}');
@@ -569,7 +592,10 @@ async function issuePenaltyDiscountFromServer(rule) {
     const res = await fetch('/api/discounts/penalty-reward', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ difficulty: diff, goalsScored: goals }),
+      body: JSON.stringify({
+        sessionId: penaltySessionId,
+        goalsScored: goals,
+      }),
     });
     const data = await res.json();
     if (data.success && data.code) {

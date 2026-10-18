@@ -1,30 +1,68 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { protect, adminOnly } = require('../middleware/authController');
+
+const penaltyRewardLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_PENALTY_MAX || '20', 10) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'درخواست‌های زیاد؛ بعداً دوباره تلاش کنید',
+  },
+});
 const DiscountCode = require('../models/DiscountCode');
 const {
   validateDiscountCode,
   createPenaltyDiscountCode,
 } = require('../services/discountService');
+const {
+  createPenaltySession,
+  validatePenaltyClaim,
+} = require('../lib/penaltyReward');
 
-const PENALTY_REWARDS = {
-  easy: { percent: 5, maxDiscountAmount: 700_000, minGoals: 5 },
-  medium: { percent: 5, maxDiscountAmount: 1_000_000, minGoals: 5 },
-  hard: { percent: 5, maxDiscountAmount: 1_500_000, minGoals: 5 },
-};
-
-/** جایزه بازی پنالتی — بدون ورود؛ کد یک‌بارمصرف در دیتابیس */
-router.post('/penalty-reward', async (req, res) => {
+/** شروع نشست بازی — قبل از شروع شوت‌ها */
+router.post('/penalty-reward/session', penaltyRewardLimiter, async (req, res) => {
   try {
-    const difficulty = String(req.body.difficulty || 'easy').toLowerCase();
-    const goalsScored = parseInt(req.body.goalsScored, 10);
-    const rule = PENALTY_REWARDS[difficulty] || PENALTY_REWARDS.easy;
-    if (!Number.isFinite(goalsScored) || goalsScored < rule.minGoals) {
-      return res.status(400).json({
+    const difficulty = String(req.body?.difficulty || 'easy').toLowerCase();
+    const ip =
+      req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
+      req.ip ||
+      '';
+    const created = await createPenaltySession(difficulty, ip);
+    if (!created.ok) {
+      return res.status(created.code).json({
         success: false,
-        message: 'برای دریافت کد، حداقل گل لازم را نزده‌اید',
+        message: created.message,
       });
     }
+    res.json({
+      success: true,
+      sessionId: created.sessionId,
+      expiresAt: created.expiresAt,
+      maxGoals: created.maxGoals,
+    });
+  } catch (err) {
+    console.error('penalty-reward/session error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+/** جایزه بازی پنالتی — نیاز به sessionId معتبر */
+router.post('/penalty-reward', penaltyRewardLimiter, async (req, res) => {
+  try {
+    const sessionId = req.body?.sessionId;
+    const goalsScored = req.body?.goalsScored;
+    const validated = await validatePenaltyClaim(sessionId, goalsScored);
+    if (!validated.ok) {
+      return res.status(validated.code).json({
+        success: false,
+        message: validated.message,
+      });
+    }
+    const { rule } = validated;
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const doc = await createPenaltyDiscountCode({
       percent: rule.percent,

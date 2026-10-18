@@ -100,6 +100,8 @@ export const ADMIN_NAV: NavGroup[] = [
 
       { href: '/admin/penalty', label: 'تنظیم پنالتی' },
 
+      { href: '/admin/site', label: 'صفحهٔ اصلی' },
+
       { href: '/admin/export', label: 'خروجی داده' },
 
     ],
@@ -332,6 +334,8 @@ export function breadcrumbLabel(pathname: string): string {
 
     '/admin/discounts': 'کدهای تخفیف',
     '/admin/penalty': 'پنالتی',
+
+    '/admin/site': 'صفحهٔ اصلی',
 
     '/admin/export': 'خروجی',
 

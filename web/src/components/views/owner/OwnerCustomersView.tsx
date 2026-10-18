@@ -22,14 +22,15 @@ export function OwnerCustomersView() {
         title="مشتریان"
         toolbar={
           <ListToolbar
+            className="owner-filter-bar"
             searchPlaceholder="جستجو نام یا موبایل…"
             searchValue={search}
             onSearchChange={setSearch}
           />
         }
       >
-        <div className="data-table-wrap">
-          <table className="data-table">
+        <div className="data-table-wrap owner-card-table-wrap">
+          <table className="data-table owner-card-table">
             <thead>
               <tr>
                 <th>نام</th>
@@ -41,10 +42,10 @@ export function OwnerCustomersView() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.name}>
-                  <td>{r.name}</td>
-                  <td>{r.phone}</td>
-                  <td>{r.count}</td>
-                  <td>{priceFa(r.total)}</td>
+                  <td data-label="نام">{r.name}</td>
+                  <td data-label="موبایل">{r.phone}</td>
+                  <td data-label="تعداد رزرو">{r.count}</td>
+                  <td data-label="مجموع پرداخت">{priceFa(r.total)}</td>
                 </tr>
               ))}
             </tbody>

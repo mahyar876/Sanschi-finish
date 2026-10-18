@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>نقشهٔ صفحات و فایل‌های پروژهٔ سانس‌چی</title>
+    <style>
+      :root {
+        --text: #1a1a1a;
+        --muted: #444;
+        --accent: #1a7f4c;
+        --border: #d8d8d8;
+        --code-bg: #f4f6f5;
+        --thead: #e8f3ed;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 1.75rem 2rem 2.5rem;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.65;
+        color: var(--text);
+        max-width: 210mm;
+        margin-inline: auto;
+      }
+      h1 {
+        font-size: 20pt;
+        margin: 0 0 0.25rem;
+        color: var(--accent);
+        page-break-after: avoid;
+      }
+      .subtitle {
+        color: var(--muted);
+        margin: 0 0 1.25rem;
+        font-size: 10.5pt;
+      }
+      h2 {
+        font-size: 13pt;
+        margin: 1.5rem 0 0.5rem;
+        padding-bottom: 0.3rem;
+        border-bottom: 2px solid var(--accent);
+        page-break-after: avoid;
+      }
+      h3 {
+        font-size: 11pt;
+        margin: 1rem 0 0.35rem;
+        color: #222;
+        page-break-after: avoid;
+      }
+      p,
+      li {
+        margin: 0.35rem 0;
+      }
+      ul {
+        margin: 0.4rem 0 0.65rem;
+        padding-right: 1.2rem;
+      }
+      code {
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 9pt;
+        background: var(--code-bg);
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        direction: ltr;
+        unicode-bidi: embed;
+      }
+      pre {
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 9pt;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.65rem 0.85rem;
+        margin: 0.5rem 0 0.85rem;
+        direction: ltr;
+        text-align: left;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .box {
+        border: 1px solid var(--border);
+        border-right: 4px solid var(--accent);
+        background: #fafcfb;
+        padding: 0.75rem 1rem;
+        margin: 0.75rem 0 1rem;
+        border-radius: 0 6px 6px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.5rem 0 1rem;
+        font-size: 9.5pt;
+        page-break-inside: auto;
+      }
+      thead {
+        display: table-header-group;
+      }
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 0.35rem 0.45rem;
+        vertical-align: top;
+        text-align: right;
+      }
+      th {
+        background: var(--thead);
+        font-weight: 600;
+      }
+      td.path {
+        direction: ltr;
+        text-align: left;
+        font-family: Consolas, monospace;
+        font-size: 8.5pt;
+        word-break: break-all;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 9pt;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      @media print {
+        body {
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>نقشهٔ صفحات و فایل‌ها</h1>
+    <p class="subtitle">پروژهٔ سانس‌چی (reserve-football) — راهنما برای کسی که با HTML / CSS / JS کار می‌کرده</p>
+
+    <div class="box">
+      <strong>خلاصه:</strong> دیگر یک فایل <code>index.html</code> برای هر صفحه ندارید. در
+      <strong>Next.js</strong> آدرس مرورگر از <strong>نام پوشه</strong> ساخته می‌شود و محتوای واقعی UI
+      معمولاً در فایل‌های <code>*.tsx</code> داخل <code>web/src/components/</code> است. استایل سراسری در
+      <code>globals.css</code> و داده از API بک‌اند (<code>backend/</code>) می‌آید.
+    </div>
+
+    <h2>۱. مقایسه با HTML سنتی</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>قبلاً (HTML/CSS/JS)</th>
+          <th>اینجا (Next.js + React)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>about.html</code> → <code>/about.html</code></td>
+          <td><code>web/src/app/(site)/about/page.tsx</code> → <code>/about</code></td>
+        </tr>
+        <tr>
+          <td>همهٔ HTML/CSS/JS در یک فایل</td>
+          <td><code>page.tsx</code> نازک + کامپوننت View + CSS ماژول/کلاس در JSX</td>
+        </tr>
+        <tr>
+          <td><code>fetch</code> به آدرس کامل API</td>
+          <td>در dev معمولاً <code>/api/...</code> (پروکسی به پورت ۵۰۰۰)</td>
+        </tr>
+        <tr>
+          <td>هدر/فوتر کپی در هر صفحه</td>
+          <td><code>layout.tsx</code> مشترک (مثلاً Header و Footer)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>۲. درخت اصلی پروژه</h2>
+    <pre>reserve-football/
+├── web/                 ← فرانت (Next.js) — چیزی که در مرورگر می‌بینید
+│   ├── public/          ← فایل‌های ثابت (تصویر، بازی پنالتی HTML قدیمی)
+│   └── src/
+│       ├── app/         ← مسیر URL + page.tsx (ورود هر صفحه)
+│       ├── components/  ← UI (مثل body هر صفحه)
+│       └── lib/         ← توابع کمکی، fetch، session
+└── backend/             ← API (Express + MongoDB)
+    ├── server.js        ← اتصال routeها
+    ├── routes/          ← endpointها
+    ├── models/          ← شکل داده در دیتابیس
+    └── services/        ← منطق تجاری</pre>
+
+    <h2>۳. قانون مسیر (Routing)</h2>
+    <ul>
+      <li>هر پوشه داخل <code>web/src/app/</code> یک بخش از URL است؛ فایل <code>page.tsx</code> همان صفحه را رندر می‌کند.</li>
+      <li>پوشه‌های داخل پرانتز مثل <code>(site)</code> یا <code>(dashboard)</code> فقط برای سازماندهی‌اند و در URL دیده <strong>نمی‌شوند</strong>.</li>
+      <li>براکت مثل <code>[slug]</code> یعنی پارامتر پویا (مثلاً نام مجموعه).</li>
+      <li>بیشتر صفحات داشبورد/سایت فقط یک View را import می‌کنند — UI اصلی را در جدول‌ها با ستون «محتوای UI» ببینید.</li>
+    </ul>
+
+    <h2>۴. صفحات عمومی سایت (هدر + فوتر)</h2>
+    <p class="muted">Layout: <code>web/src/app/(site)/layout.tsx</code> → Header، Footer، DemoModeBanner</p>
+    <table>
+      <thead>
+        <tr>
+          <th>آدرس در مرورگر</th>
+          <th>فایل مسیر (page)</th>
+          <th>محتوای UI / کامپوننت</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/</code></td>
+          <td class="path">web/src/app/(site)/page.tsx</td>
+          <td>HomeVenueSections، HomeFlashDealsSection، Button، …</td>
+        </tr>
+        <tr>
+          <td><code>/gallery</code></td>
+          <td class="path">web/src/app/(site)/gallery/page.tsx</td>
+          <td>GalleryGrid (+ فیلتر در GalleryFilterSidebar)</td>
+        </tr>
+        <tr>
+          <td><code>/gallery/[slug]</code></td>
+          <td class="path">web/src/app/(site)/gallery/[slug]/page.tsx</td>
+          <td>فقط redirect به <code>/reserve?venue=...</code> (صفحهٔ جزئیات جدا ندارد)</td>
+        </tr>
+        <tr>
+          <td><code>/reserve</code></td>
+          <td class="path">web/src/app/(site)/reserve/page.tsx</td>
+          <td>ReserveView</td>
+        </tr>
+        <tr>
+          <td><code>/reserve/confirm</code></td>
+          <td class="path">web/src/app/(site)/reserve/confirm/page.tsx</td>
+          <td>ReserveConfirmView</td>
+        </tr>
+        <tr>
+          <td><code>/login</code></td>
+          <td class="path">web/src/app/(site)/login/page.tsx</td>
+          <td>LoginView</td>
+        </tr>
+        <tr>
+          <td><code>/payment</code></td>
+          <td class="path">web/src/app/(site)/payment/page.tsx</td>
+          <td>PaymentView</td>
+        </tr>
+        <tr>
+          <td><code>/payment/test</code></td>
+          <td class="path">web/src/app/(site)/payment/test/page.tsx</td>
+          <td>محتوا داخل همان page (تست درگاه)</td>
+        </tr>
+        <tr>
+          <td><code>/assistant</code></td>
+          <td class="path">web/src/app/(site)/assistant/page.tsx</td>
+          <td>BookingAssistantView</td>
+        </tr>
+        <tr>
+          <td><code>/for-owners</code></td>
+          <td class="path">web/src/app/(site)/for-owners/page.tsx</td>
+          <td>OwnerPartnerView (درخواست همکاری مالک)</td>
+        </tr>
+        <tr>
+          <td><code>/about</code></td>
+          <td class="path">web/src/app/(site)/about/page.tsx</td>
+          <td>متن در خود page.tsx</td>
+        </tr>
+        <tr>
+          <td><code>/terms</code></td>
+          <td class="path">web/src/app/(site)/terms/page.tsx</td>
+          <td>متن در خود page.tsx</td>
+        </tr>
+        <tr>
+          <td><code>/privacy</code></td>
+          <td class="path">web/src/app/(site)/privacy/page.tsx</td>
+          <td>متن در خود page.tsx</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>۵. پنل بازیکن (<code>/player/...</code>)</h2>
+    <p class="muted">Layout نقش: <code>web/src/app/(dashboard)/player/layout.tsx</code> + DashboardAppShell</p>
+    <table>
+      <thead>
+        <tr>
+          <th>آدرس</th>
+          <th>page.tsx</th>
+          <th>View</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/player</code></td>
+          <td class="path">.../player/page.tsx</td>
+          <td>PlayerHomeView</td>
+        </tr>
+        <tr>
+          <td><code>/player/reservations</code></td>
+          <td class="path">.../player/reservations/page.tsx</td>
+          <td>PlayerReservationsView</td>
+        </tr>
+        <tr>
+          <td><code>/player/favorites</code></td>
+          <td class="path">.../player/favorites/page.tsx</td>
+          <td>PlayerFavoritesView</td>
+        </tr>
+        <tr>
+          <td><code>/player/wallet</code></td>
+          <td class="path">.../player/wallet/page.tsx</td>
+          <td>PlayerWalletView</td>
+        </tr>
+        <tr>
+          <td><code>/player/discounts</code></td>
+          <td class="path">.../player/discounts/page.tsx</td>
+          <td>PlayerDiscountsView</td>
+        </tr>
+        <tr>
+          <td><code>/player/rebook</code></td>
+          <td class="path">.../player/rebook/page.tsx</td>
+          <td>PlayerRebookView</td>
+        </tr>
+        <tr>
+          <td><code>/player/notifications</code></td>
+          <td class="path">.../player/notifications/page.tsx</td>
+          <td>PlayerNotificationsView</td>
+        </tr>
+        <tr>
+          <td><code>/player/profile</code></td>
+          <td class="path">.../player/profile/page.tsx</td>
+          <td>PlayerProfileView</td>
+        </tr>
+        <tr>
+          <td><code>/player/search</code></td>
+          <td class="path">.../player/search/page.tsx</td>
+          <td>redirect (میانبر)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted">مسیر کامل pageها: <code>web/src/app/(dashboard)/player/...</code></p>
+
+    <div class="page-break"></div>
+
+    <h2>۶. پنل مالک زمین (<code>/owner/...</code>)</h2>
+    <p class="muted">Layout: <code>web/src/app/(dashboard)/owner/layout.tsx</code></p>
+    <table>
+      <thead>
+        <tr>
+          <th>آدرس</th>
+          <th>View اصلی</th>
+          <th>یادداشت</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/owner</code></td>
+          <td>OwnerDashboardView</td>
+          <td class="path">owner/page.tsx</td>
+        </tr>
+        <tr>
+          <td><code>/owner/pitches</code></td>
+          <td>OwnerPitchesView</td>
+          <td>لیست زمین‌ها</td>
+        </tr>
+        <tr>
+          <td><code>/owner/pitch</code></td>
+          <td>OwnerPitchView (+ OwnerPitchEditor)</td>
+          <td>ویرایش یک زمین</td>
+        </tr>
+        <tr>
+          <td><code>/owner/slots</code></td>
+          <td>OwnerSlotsView</td>
+          <td>سانس و قیمت</td>
+        </tr>
+        <tr>
+          <td><code>/owner/reservations</code></td>
+          <td>OwnerReservationsView</td>
+          <td>رزروها</td>
+        </tr>
+        <tr>
+          <td><code>/owner/customers</code></td>
+          <td>OwnerCustomersView</td>
+          <td>مشتریان</td>
+        </tr>
+        <tr>
+          <td><code>/owner/messages</code></td>
+          <td>OwnerMessagesView</td>
+          <td>پیام‌ها</td>
+        </tr>
+        <tr>
+          <td><code>/owner/reports</code></td>
+          <td>OwnerReportsView</td>
+          <td>گزارش</td>
+        </tr>
+        <tr>
+          <td><code>/owner/profile</code></td>
+          <td>PlayerProfileView</td>
+          <td>پروفایل (مشترک با بازیکن)</td>
+        </tr>
+        <tr>
+          <td><code>/finance</code></td>
+          <td>FinanceView</td>
+          <td class="path">(dashboard)/finance/page.tsx</td>
+        </tr>
+        <tr>
+          <td><code>/settlement</code></td>
+          <td>SettlementView</td>
+          <td class="path">(dashboard)/settlement/page.tsx</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>۷. پنل ادمین (<code>/admin/...</code>)</h2>
+    <p class="muted">Layout: <code>web/src/app/(dashboard)/admin/layout.tsx</code> — منوی کناری از <code>web/src/lib/dashboard-nav.ts</code></p>
+    <table>
+      <thead>
+        <tr>
+          <th>آدرس</th>
+          <th>View / صفحه</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>/admin</code></td><td>AdminOverviewPage</td></tr>
+        <tr><td><code>/admin/pitches</code></td><td>AdminPitchesPage</td></tr>
+        <tr><td><code>/admin/pitches/new</code></td><td>AdminNewPitchPage</td></tr>
+        <tr><td><code>/admin/slots</code></td><td>AdminSlotsPage</td></tr>
+        <tr><td><code>/admin/reservations</code></td><td>AdminReservationsPage</td></tr>
+        <tr><td><code>/admin/partner-requests</code></td><td>AdminPartnerRequestsPage</td></tr>
+        <tr><td><code>/admin/owners</code></td><td>AdminOwnersPage</td></tr>
+        <tr><td><code>/admin/finance</code></td><td>AdminFinanceView</td></tr>
+        <tr><td><code>/admin/discounts</code></td><td>AdminDiscountsPage</td></tr>
+        <tr><td><code>/admin/penalty</code></td><td>AdminPenaltyView</td></tr>
+        <tr><td><code>/admin/site</code></td><td>AdminSiteSettingsView</td></tr>
+        <tr><td><code>/admin/export</code></td><td>AdminExportPage</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">همهٔ Viewها در <code>web/src/components/views/admin/</code> (به‌جز AdminFinanceView در views/)</p>
+
+    <h2>۸. سایر مسیرها</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>آدرس</th>
+          <th>فایل</th>
+          <th>توضیح</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/penalty</code></td>
+          <td class="path">web/src/app/(game)/penalty/page.tsx</td>
+          <td>PenaltyView — iframe به بازی در public</td>
+        </tr>
+        <tr>
+          <td><code>/mobile-preview</code></td>
+          <td class="path">web/src/app/(preview)/mobile-preview/page.tsx</td>
+          <td>پیش‌نمایش موبایل (ابزار داخلی)</td>
+        </tr>
+        <tr>
+          <td><code>/responsive-preview</code></td>
+          <td class="path">web/src/app/(preview)/responsive-preview/page.tsx</td>
+          <td>پیش‌نمایش ریسپانسیو</td>
+        </tr>
+        <tr>
+          <td><code>/dev/panels</code></td>
+          <td class="path">web/src/app/dev/panels/page.tsx</td>
+          <td>ورود سریع به پنل‌ها (فقط توسعه)</td>
+        </tr>
+        <tr>
+          <td><code>/profile</code></td>
+          <td class="path">web/src/app/(dashboard)/profile/page.tsx</td>
+          <td>redirect به پروفایل نقش کاربر</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>۹. فایل‌های مشترک (مثل header.html قدیمی)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>نقش</th>
+          <th>مسیر</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>قالب ریشه + فونت + metadata</td>
+          <td class="path">web/src/app/layout.tsx</td>
+        </tr>
+        <tr>
+          <td>CSS سراسری سایت</td>
+          <td class="path">web/src/app/globals.css</td>
+        </tr>
+        <tr>
+          <td>هدر و فوتر صفحات عمومی</td>
+          <td class="path">web/src/components/Header.tsx ، Footer.tsx</td>
+        </tr>
+        <tr>
+          <td>پوستهٔ داشبورد (منو، نقش کاربر)</td>
+          <td class="path">web/src/components/dashboard/DashboardAppShell.tsx</td>
+        </tr>
+        <tr>
+          <td>فراخوانی API</td>
+          <td class="path">web/src/lib/fetch-api.ts ، web/src/lib/api.ts</td>
+        </tr>
+        <tr>
+          <td>توکن لاگین در مرورگر</td>
+          <td class="path">web/src/lib/session.ts</td>
+        </tr>
+        <tr>
+          <td>پروکسی dev به بک‌اند</td>
+          <td class="path">web/next.config.ts</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>۱۰. HTML/CSS/JS کلاسیک داخل پروژه</h2>
+    <p>بازی پنالتی هنوز شبیه پروژهٔ قدیمی شماست:</p>
+    <ul>
+      <li><code>web/public/penalty-frame.html</code></li>
+      <li><code>web/public/penalty-game.js</code></li>
+      <li><code>web/public/penalty.css</code> ، penalty-polish.css ، penalty-responsive.css</li>
+    </ul>
+    <p>صفحهٔ Next فقط قاب (<code>PenaltyView</code>) است و بازی را embed می‌کند.</p>
+
+    <div class="page-break"></div>
+
+    <h2>۱۱. بک‌اند — API مربوط به هر بخش</h2>
+    <p class="muted">پایه: <code>http://localhost:5000/api/...</code> — تعریف در <code>backend/server.js</code></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Prefix API</th>
+          <th>فایل route</th>
+          <th>معمولاً برای</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>/api/auth</code></td><td class="path">backend/routes/auth.js</td><td>ورود، OTP، ثبت‌نام</td></tr>
+        <tr><td><code>/api/pitches</code></td><td class="path">backend/routes/pitches.js</td><td>گالری، جزئیات زمین، سانس</td></tr>
+        <tr><td><code>/api/reservations</code></td><td class="path">backend/routes/reservations.js</td><td>رزرو</td></tr>
+        <tr><td><code>/api/payment</code></td><td class="path">backend/routes/payment.js</td><td>پرداخت</td></tr>
+        <tr><td><code>/api/wallet</code></td><td class="path">backend/routes/wallet.js</td><td>کیف پول بازیکن</td></tr>
+        <tr><td><code>/api/discounts</code></td><td class="path">backend/routes/discounts.js</td><td>تخفیف</td></tr>
+        <tr><td><code>/api/owner</code></td><td class="path">backend/routes/owner.js</td><td>پنل مالک</td></tr>
+        <tr><td><code>/api/owner-applications</code></td><td class="path">backend/routes/ownerApplications.js</td><td>درخواست همکاری</td></tr>
+        <tr><td><code>/api/admin</code></td><td class="path">backend/routes/admin.js</td><td>ادمین</td></tr>
+        <tr><td><code>/api/settings</code></td><td class="path">backend/routes/settings.js</td><td>تنظیمات سایت</td></tr>
+        <tr><td><code>/api/assistant</code></td><td class="path">backend/routes/assistant.js</td><td>دستیار رزرو</td></tr>
+        <tr><td><code>/api/settlements</code></td><td class="path">backend/settlements.js</td><td>تسویه</td></tr>
+        <tr><td><code>/api/notifications</code></td><td class="path">backend/routes/notifications.js</td><td>اعلان</td></tr>
+      </tbody>
+    </table>
+    <p>منطق سنگین‌تر اغلب در <code>backend/services/</code> و شکل داده در <code>backend/models/</code> است.</p>
+
+    <h2>۱۲. برای ویرایش سریع چه کار کنید؟</h2>
+    <ol>
+      <li>آدرس صفحه را در مرورگر ببینید (مثلاً <code>/reserve</code>).</li>
+      <li>در <code>web/src/app/</code> همان مسیر را پیدا کنید → فایل <code>page.tsx</code>.</li>
+      <li>نام View import‌شده را باز کنید (معمولاً زیر <code>web/src/components/views/</code>).</li>
+      <li>ظاهر کلی سایت: <code>globals.css</code> + کلاس‌های داخل همان کامپوننت.</li>
+      <li>اگر داده از سرور می‌آید: در View دنبال <code>apiFetch</code> بگردید → endpoint در <code>backend/routes/</code>.</li>
+    </ol>
+
+    <p class="muted" style="margin-top: 2rem">
+      تولید خودکار از ساختار repo — سانس‌چی / reserve-football —
+      <span dir="ltr">docs/sakhtar-safahat-sanschii.html</span>
+    </p>
+  </body>
+</html>

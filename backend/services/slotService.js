@@ -5,8 +5,14 @@ const {
   BOOKING_STATUS,
   PAYMENT_STATUS,
   SLOT_STATUS,
+  ACTIVE_SLOT_BOOKING_STATUSES,
   legacyStatusFromBooking,
 } = require('../lib/bookingConstants');
+
+function parseSlotIndex(slotIndex) {
+  const idx = parseInt(slotIndex, 10);
+  return Number.isNaN(idx) ? null : idx;
+}
 const { appendHistory } = require('./bookingHistory');
 
 function getPitchCommission(pitch) {
@@ -23,22 +29,31 @@ function computeTotals(slotPrice, pitch, discountAmount = 0) {
 
 async function ensureDaily(pitch, pitchId, date) {
   let daily = await DailyAvailability.findOne({ pitch: pitchId, date });
-  if (!daily) {
-    const slots = pitch.slots.map((s, i) => ({
-      slotIndex: i,
-      time: s.time,
-      price: s.price,
-      taken: s.taken || false,
-      takenBy: s.takenBy || null,
-      reservationId: null,
-      slotStatus: s.taken ? SLOT_STATUS.BOOKED : SLOT_STATUS.FREE,
-      lockUntil: null,
-      lockedBy: null,
-      blocked: false,
-    }));
+  if (daily) return daily;
+
+  const slots = pitch.slots.map((s, i) => ({
+    slotIndex: i,
+    time: s.time,
+    price: s.price,
+    taken: s.taken || false,
+    takenBy: s.takenBy || null,
+    reservationId: null,
+    slotStatus: s.taken ? SLOT_STATUS.BOOKED : SLOT_STATUS.FREE,
+    lockUntil: null,
+    lockedBy: null,
+    blocked: false,
+  }));
+
+  try {
     daily = await DailyAvailability.create({ pitch: pitchId, date, slots });
+    return daily;
+  } catch (err) {
+    if (err && err.code === 11000) {
+      daily = await DailyAvailability.findOne({ pitch: pitchId, date });
+      if (daily) return daily;
+    }
+    throw err;
   }
-  return daily;
 }
 
 /** همگام‌سازی slotStatus با taken و قفل منقضی */
@@ -47,6 +62,15 @@ function normalizeSlot(slot, now = new Date()) {
   if (s.blocked) {
     s.slotStatus = SLOT_STATUS.BLOCKED;
     return s;
+  }
+  if (
+    s.lockUntil &&
+    new Date(s.lockUntil) > now &&
+    s.lockedBy &&
+    !s.taken &&
+    s.slotStatus !== SLOT_STATUS.BOOKED
+  ) {
+    s.slotStatus = SLOT_STATUS.LOCKED;
   }
   if (s.lockUntil && new Date(s.lockUntil) <= now) {
     if (s.slotStatus === SLOT_STATUS.LOCKED && !s.taken) {
@@ -142,10 +166,16 @@ async function expireStaleForDaily(daily) {
 }
 
 async function tryAcquireLock({ pitch, pitchId, date, slotIndex, userId }) {
+  const slotIdx = parseSlotIndex(slotIndex);
+  if (slotIdx == null) {
+    return { ok: false, code: 400, message: 'سانس نامعتبر است' };
+  }
+
   const daily = await ensureDaily(pitch, pitchId, date);
   await expireStaleForDaily(daily);
 
-  const slot = daily.slots.find((s) => s.slotIndex === slotIndex);
+  const refreshedDaily = await DailyAvailability.findById(daily._id);
+  const slot = refreshedDaily.slots.find((s) => s.slotIndex === slotIdx);
   if (!slot) {
     return { ok: false, code: 400, message: 'سانس نامعتبر است' };
   }
@@ -163,10 +193,16 @@ async function tryAcquireLock({ pitch, pitchId, date, slotIndex, userId }) {
         'این سانس توسط کاربر دیگری رزرو شده است. لطفاً سانس دیگری انتخاب کنید.',
     };
   }
-  if (
-    norm.slotStatus === SLOT_STATUS.LOCKED &&
+  const lockHeldByOther =
+    norm.lockUntil &&
+    new Date(norm.lockUntil) > now &&
     norm.lockedBy &&
-    norm.lockedBy.toString() !== userId.toString()
+    norm.lockedBy.toString() !== userId.toString();
+  if (
+    lockHeldByOther ||
+    (norm.slotStatus === SLOT_STATUS.LOCKED &&
+      norm.lockedBy &&
+      norm.lockedBy.toString() !== userId.toString())
   ) {
     return {
       ok: false,
@@ -176,15 +212,40 @@ async function tryAcquireLock({ pitch, pitchId, date, slotIndex, userId }) {
     };
   }
 
+  const existingActive = await Reservation.findOne({
+    pitch: pitchId,
+    date,
+    slotIndex: slotIdx,
+    bookingStatus: { $in: ACTIVE_SLOT_BOOKING_STATUSES },
+  });
+  if (
+    existingActive &&
+    existingActive.user.toString() !== userId.toString()
+  ) {
+    return {
+      ok: false,
+      code: 409,
+      message:
+        'این سانس توسط کاربر دیگری رزرو شده است. لطفاً سانس دیگری انتخاب کنید.',
+    };
+  }
+
   const lockUntil = new Date(now.getTime() + LOCK_DURATION_MS);
   const claim = await DailyAvailability.updateOne(
     {
-      _id: daily._id,
+      _id: refreshedDaily._id,
       slots: {
         $elemMatch: {
-          slotIndex,
+          slotIndex: slotIdx,
           blocked: { $ne: true },
           taken: false,
+          slotStatus: { $ne: SLOT_STATUS.BOOKED },
+          $nor: [
+            {
+              lockUntil: { $gt: now },
+              lockedBy: { $exists: true, $nin: [null, userId] },
+            },
+          ],
           $or: [
             { slotStatus: SLOT_STATUS.FREE },
             { slotStatus: { $exists: false } },
@@ -212,8 +273,8 @@ async function tryAcquireLock({ pitch, pitchId, date, slotIndex, userId }) {
     };
   }
 
-  const refreshed = await DailyAvailability.findById(daily._id);
-  const lockedSlot = refreshed.slots.find((s) => s.slotIndex === slotIndex);
+  const refreshed = await DailyAvailability.findById(refreshedDaily._id);
+  const lockedSlot = refreshed.slots.find((s) => s.slotIndex === slotIdx);
   return { ok: true, daily: refreshed, slot: lockedSlot, lockUntil };
 }
 
@@ -229,13 +290,23 @@ function releaseSlotOnDaily(daily, slotIndex) {
 }
 
 async function confirmSlotBooked(daily, slotIndex, userId, reservationId) {
+  const slotIdx = parseSlotIndex(slotIndex);
+  if (slotIdx == null) {
+    throw new Error('سانس نامعتبر است');
+  }
+
   const claim = await DailyAvailability.updateOne(
     {
       _id: daily._id,
       slots: {
         $elemMatch: {
-          slotIndex,
-          reservationId: reservationId,
+          slotIndex: slotIdx,
+          taken: false,
+          $or: [
+            { reservationId },
+            { reservationId: null },
+            { reservationId: { $exists: false } },
+          ],
         },
       },
     },
@@ -244,22 +315,16 @@ async function confirmSlotBooked(daily, slotIndex, userId, reservationId) {
         'slots.$.slotStatus': SLOT_STATUS.BOOKED,
         'slots.$.taken': true,
         'slots.$.takenBy': userId,
+        'slots.$.reservationId': reservationId,
         'slots.$.lockUntil': null,
         'slots.$.lockedBy': null,
       },
     },
   );
   if (!claim.modifiedCount) {
-    const slot = daily.slots.find((s) => s.slotIndex === slotIndex);
-    if (slot) {
-      slot.slotStatus = SLOT_STATUS.BOOKED;
-      slot.taken = true;
-      slot.takenBy = userId;
-      slot.reservationId = reservationId;
-      slot.lockUntil = null;
-      slot.lockedBy = null;
-      await daily.save();
-    }
+    throw new Error(
+      'این سانس قبلاً توسط کاربر دیگری رزرو شده است. در صورت کسر وجه با پشتیبانی تماس بگیرید.',
+    );
   }
 }
 
@@ -268,6 +333,7 @@ module.exports = {
   computeTotals,
   ensureDaily,
   normalizeSlot,
+  parseSlotIndex,
   expireStaleForDaily,
   tryAcquireLock,
   releaseSlotOnDaily,
@@ -277,6 +343,7 @@ module.exports = {
   BOOKING_STATUS,
   PAYMENT_STATUS,
   SLOT_STATUS,
+  ACTIVE_SLOT_BOOKING_STATUSES,
   legacyStatusFromBooking,
   LOCK_DURATION_MS,
 };

@@ -407,7 +407,7 @@ function generateCode(discountPct) {
 }
 
 function saveDiscount(code, pct, maxAmount) {
-  const key = 'sanschi_discounts';
+  const key = 'sanschii_discounts';
   let store = {};
   try {
     store = JSON.parse(localStorage.getItem(key) || '{}');

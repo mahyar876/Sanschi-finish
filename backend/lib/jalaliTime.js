@@ -153,4 +153,6 @@ module.exports = {
   isSlotPast,
   toAsciiDigits,
   todayJalaliApiDate,
+  gregorianToJalali,
+  jalaliToGregorian,
 };

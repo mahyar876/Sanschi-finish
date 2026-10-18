@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://sanschi.ir';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://sanschii.ir';
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -17,6 +17,7 @@ export default function robots(): MetadataRoute.Robots {
         '/payment',
         '/payment/test',
         '/mobile-preview',
+        '/responsive-preview',
       ],
     },
     sitemap: `${siteUrl}/sitemap.xml`,

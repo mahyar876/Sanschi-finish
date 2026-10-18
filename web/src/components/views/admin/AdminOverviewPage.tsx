@@ -21,6 +21,8 @@ export function AdminOverviewPage() {
   const [resCount, setResCount] = useState(0);
   const [pending, setPending] = useState(0);
   const [revenue, setRevenue] = useState(0);
+  const [commission, setCommission] = useState(0);
+  const [settlementPending, setSettlementPending] = useState(0);
   const [ownerCancels, setOwnerCancels] = useState<
     { label: string; count: number }[]
   >([]);
@@ -62,6 +64,17 @@ export function AdminOverviewPage() {
           if (d.success) setOwnerCancels(d.summary.slice(0, 5));
         })
         .catch(() => {});
+      void apiFetch<{
+        success: boolean;
+        reservations?: { commissionAccrued: number };
+        settlements?: { pending: number };
+      }>('/admin/finance/overview')
+        .then((d) => {
+          if (!d.success) return;
+          setCommission(d.reservations?.commissionAccrued ?? 0);
+          setSettlementPending(d.settlements?.pending ?? 0);
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -74,8 +87,16 @@ export function AdminOverviewPage() {
       <StatGrid>
         <StatCard label="مجموعه‌ها" value={pitchCount} hint={`${activeCount} فعال`} />
         <StatCard label="رزروها" value={resCount} hint={`${pending} در انتظار`} />
-        <StatCard label="درآمد پرداخت‌شده" value={priceFa(revenue)} />
-        <StatCard label="تسویه" value="—" hint="از منوی مالی" />
+        <StatCard label="گردش (GMV)" value={priceFa(revenue)} />
+        <StatCard
+          label="کارمزد ثبت‌شده"
+          value={priceFa(commission)}
+          hint={
+            settlementPending > 0
+              ? `${settlementPending} تسویه در صف`
+              : 'از منوی مالی'
+          }
+        />
       </StatGrid>
       <ActionsPanel title="میانبرها" description="دسترسی سریع به بخش‌های اصلی">
         <div className="dash-shortcuts">
@@ -96,8 +117,14 @@ export function AdminOverviewPage() {
               پرداخت آزمایشی
             </Link>
           )}
+          <Link href="/admin/finance" className="btn btn-secondary">
+            مالی و تسویه
+          </Link>
           <Link href="/admin/penalty" className="btn btn-ghost">
             تنظیم پنالتی
+          </Link>
+          <Link href="/admin/site" className="btn btn-ghost">
+            صفحهٔ اصلی
           </Link>
         </div>
       </ActionsPanel>

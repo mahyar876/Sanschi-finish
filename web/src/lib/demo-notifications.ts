@@ -10,7 +10,7 @@ export type DemoNotification = {
 };
 
 function storageKey(phone: string) {
-  return `sanschi_notifications_${phone}`;
+  return `sanschii_notifications_${phone}`;
 }
 
 export function loadDemoNotifications(): DemoNotification[] {

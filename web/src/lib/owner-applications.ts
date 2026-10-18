@@ -15,6 +15,9 @@ export type OwnerApplicationStatus =
 export type OwnerApplication = {
   _id: string;
   contactName: string;
+  firstName?: string;
+  lastName?: string;
+  sheba?: string;
   phone: string;
   email?: string;
   venueName: string;
@@ -23,6 +26,7 @@ export type OwnerApplication = {
   address: string;
   tehranZone?: TehranZone | '';
   basePrice: number;
+  womenBookingAllowed?: boolean | null;
   description?: string;
   status: OwnerApplicationStatus;
   adminNote?: string;
@@ -34,7 +38,10 @@ export type OwnerApplication = {
 };
 
 export type OwnerApplicationInput = {
-  contactName: string;
+  contactName?: string;
+  firstName: string;
+  lastName: string;
+  sheba: string;
   phone: string;
   email?: string;
   venueName: string;
@@ -43,10 +50,11 @@ export type OwnerApplicationInput = {
   address: string;
   tehranZone?: TehranZone | '';
   basePrice: number;
+  womenBookingAllowed: boolean;
   description?: string;
 };
 
-const DEMO_KEY = 'sanschi_owner_applications';
+const DEMO_KEY = 'sanschii_owner_applications';
 
 function loadDemoApps(): OwnerApplication[] {
   if (typeof window === 'undefined') return [];
@@ -74,9 +82,14 @@ export async function submitOwnerApplication(
       (a) => a.phone === input.phone && a.status === 'needs_revision',
     );
     if (fixIdx >= 0) {
+      const contactName =
+        input.contactName?.trim() ||
+        `${input.firstName} ${input.lastName}`.trim() ||
+        list[fixIdx].contactName;
       const updated: OwnerApplication = {
         ...list[fixIdx],
         ...input,
+        contactName,
         status: 'pending',
         revisionNote: '',
         rejectReason: '',
@@ -87,9 +100,12 @@ export async function submitOwnerApplication(
       saveDemoApps(next);
       return { message: 'درخواست اصلاح‌شده ثبت شد و دوباره در صف بررسی است.' };
     }
+    const contactName =
+      input.contactName?.trim() || `${input.firstName} ${input.lastName}`.trim();
     const row: OwnerApplication = {
       _id: `app-${Date.now()}`,
       ...input,
+      contactName,
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
@@ -154,6 +170,7 @@ export async function approveOwnerApplication(id: string, adminNote = '') {
       tags: [],
       isActive: true,
       commissionAmount: 45_000,
+      womenBookingAllowed: app.womenBookingAllowed ?? null,
     });
     upsertDemoPitch({
       ...pitch,

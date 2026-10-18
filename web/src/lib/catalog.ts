@@ -1,10 +1,13 @@
 import { VENUES, type Venue, type VenueCategory } from '@/data/venues';
 import { apiFetch } from '@/lib/fetch-api';
+import { cachedRequest } from '@/lib/request-cache';
 import { loadDemoPitches } from '@/lib/demo-pitches';
 import { isDemoFrontend } from '@/lib/demo';
-import type { Pitch } from '@/lib/pitch-types';
+import { DEFAULT_SLOT_TIMES, type Pitch } from '@/lib/pitch-types';
 import { resolveCatalogImage } from '@/lib/venue-images';
 import { inferTehranZone, type TehranZone } from '@/lib/tehran-zones';
+import { normalizeAmenityIds, type PitchAmenityId } from '@/lib/pitch-amenities';
+import { enrichPitchCatalogFields } from '@/lib/pitch-catalog-enrichment';
 
 export type CatalogVenue = {
   pitchId: string;
@@ -24,6 +27,12 @@ export type CatalogVenue = {
   desc?: string;
   lat?: number;
   lng?: number;
+  womenBookingAllowed?: boolean | null;
+  amenities: PitchAmenityId[];
+  rulesText?: string;
+  maxCapacity?: number | null;
+  /** بازه‌های زمانی سانس (برای فیلتر ساعت) */
+  slotTimes: string[];
 };
 
 function slugify(name: string): string {
@@ -85,6 +94,18 @@ export function pitchToCatalog(p: Pitch, avail?: number): CatalogVenue {
   const pitchImage =
     venue && !pitchTypeMatchesCategory(p, category) ? undefined : p.image;
 
+  const enriched = enrichPitchCatalogFields({
+    name: displayName,
+    address: displayAddress,
+    type: p.type === 'grass' ? 'grass' : 'futsal',
+    size: p.size,
+    tags: p.tags?.length ? p.tags : venue?.tags || [],
+    amenities: p.amenities,
+    maxCapacity: p.maxCapacity,
+    womenBookingAllowed: p.womenBookingAllowed,
+    rulesText: p.rulesText,
+  });
+
   return {
     pitchId: p._id,
     slug,
@@ -105,7 +126,53 @@ export function pitchToCatalog(p: Pitch, avail?: number): CatalogVenue {
     desc: p.desc || venue?.seoDescription,
     lat: p.lat ?? venue?.lat,
     lng: p.lng ?? venue?.lng,
+    womenBookingAllowed: enriched.womenBookingAllowed,
+    amenities: enriched.amenities,
+    rulesText: enriched.rulesText,
+    maxCapacity: enriched.maxCapacity,
+    slotTimes: (() => {
+      const fromApi = (p as Pitch & { slotTimes?: string[] }).slotTimes?.filter(Boolean);
+      if (fromApi?.length) return fromApi;
+      const fromSlots = (p.slots || []).map((s) => s.time).filter(Boolean);
+      if (fromSlots.length) return fromSlots;
+      return [...DEFAULT_SLOT_TIMES];
+    })(),
   };
+}
+
+/** demo-1 + venue=futsal-aria-tehran → pitchId واقعی از API وقتی کاتالوگ live است */
+export function resolveCatalogPitchId(
+  items: CatalogVenue[],
+  opts: { pitchId?: string | null; venueSlug?: string | null },
+): string {
+  const { pitchId, venueSlug } = opts;
+  if (venueSlug) {
+    const bySlug = items.find((i) => i.slug === venueSlug);
+    if (bySlug && !bySlug.pitchId.startsWith('demo-')) return bySlug.pitchId;
+    const venueDef = VENUES.find((v) => v.slug === venueSlug);
+    if (venueDef) {
+      const byName = items.find(
+        (i) => !i.pitchId.startsWith('demo-') && i.name.trim() === venueDef.name.trim(),
+      );
+      if (byName) return byName.pitchId;
+    }
+  }
+  if (pitchId && !pitchId.startsWith('demo-')) {
+    const byId = items.find((i) => i.pitchId === pitchId);
+    if (byId) return byId.pitchId;
+  }
+  if (pitchId?.startsWith('demo-')) {
+    const localId = pitchId.slice('demo-'.length);
+    const venue = VENUES.find((v) => v.id === localId);
+    if (venue) {
+      const mapped = items.find((i) => i.slug === venue.slug && !i.pitchId.startsWith('demo-'));
+      if (mapped) return mapped.pitchId;
+    }
+    const fallback = items.find((i) => i.pitchId === pitchId);
+    if (fallback) return fallback.pitchId;
+  }
+  const firstLive = items.find((i) => !i.pitchId.startsWith('demo-'));
+  return firstLive?.pitchId ?? items[0]?.pitchId ?? '';
 }
 
 export function catalogFromVenues(): CatalogVenue[] {
@@ -132,26 +199,56 @@ export function catalogFromVenues(): CatalogVenue[] {
   );
 }
 
-export async function fetchCatalog(): Promise<{ items: CatalogVenue[]; live: boolean }> {
+export type CatalogFetchResult = {
+  items: CatalogVenue[];
+  /** API وصل است و زمین از DB آمده */
+  live: boolean;
+  apiReachable: boolean;
+  pitchesFromDb: boolean;
+};
+
+export async function fetchCatalog(): Promise<CatalogFetchResult> {
   if (isDemoFrontend()) {
     const pitches = loadDemoPitches().filter((p) => p.isActive);
-    return { items: pitches.map((p) => pitchToCatalog(p)), live: false };
+    return {
+      items: pitches.map((p) => pitchToCatalog(p)),
+      live: false,
+      apiReachable: false,
+      pitchesFromDb: false,
+    };
   }
-  try {
-    const data = await apiFetch<{
-      success: boolean;
-      pitches: (Pitch & { avail?: number })[];
-    }>('/pitches?sort=avail');
-    if (data.success && data.pitches.length) {
-      return {
-        items: data.pitches.map((p) => pitchToCatalog(p, p.avail)),
-        live: true,
-      };
+  return cachedRequest('catalog:live', 30_000, async () => {
+    try {
+      const data = await apiFetch<{
+        success: boolean;
+        pitches: (Pitch & { avail?: number })[];
+      }>('/pitches?sort=avail&catalog=1');
+      if (data.success && data.pitches.length) {
+        return {
+          items: data.pitches.map((p) => pitchToCatalog(p, p.avail)),
+          live: true,
+          apiReachable: true,
+          pitchesFromDb: true,
+        } satisfies CatalogFetchResult;
+      }
+      if (data.success) {
+        return {
+          items: catalogFromVenues(),
+          live: false,
+          apiReachable: true,
+          pitchesFromDb: false,
+        } satisfies CatalogFetchResult;
+      }
+    } catch {
+      /* fallback */
     }
-  } catch {
-    /* fallback */
-  }
-  return { items: catalogFromVenues(), live: false };
+    return {
+      items: catalogFromVenues(),
+      live: false,
+      apiReachable: false,
+      pitchesFromDb: false,
+    } satisfies CatalogFetchResult;
+  });
 }
 
 export function findCatalogBySlug(items: CatalogVenue[], slug: string): CatalogVenue | undefined {

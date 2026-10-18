@@ -30,7 +30,7 @@ export default function PrivacyPage() {
       <h2>درخواست حذف</h2>
       <p>
         برای درخواست حذف یا اصلاح اطلاعات با{' '}
-        <a href="mailto:support@sanschi.ir">support@sanschi.ir</a> تماس بگیرید.
+        <a href="mailto:support@sanschii.ir">support@sanschii.ir</a> تماس بگیرید.
       </p>
     </div>
   );

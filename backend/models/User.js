@@ -8,6 +8,14 @@ const userSchema = new mongoose.Schema({
     trim: true,
     minlength: [3, 'نام باید حداقل ۳ کاراکتر باشد'],
   },
+  firstName: { type: String, trim: true, default: '' },
+  lastName: { type: String, trim: true, default: '' },
+  sheba: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: '',
+  },
   phone: {
     type: String,
     required: [true, 'شماره موبایل الزامی است'],
@@ -36,6 +44,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['user', 'owner', 'admin'],
     default: 'user',
+  },
+  /** موجودی کیف پول (تومان) — برای پرداخت رزرو */
+  walletBalance: {
+    type: Number,
+    default: 0,
+    min: 0,
   },
   createdAt: { type: Date, default: Date.now },
 });

@@ -12,9 +12,14 @@ export type Pitch = {
   price: number;
   address: string;
   desc?: string;
+  rulesText?: string;
+  amenities?: string[];
+  maxCapacity?: number | null;
   tags: string[];
   image?: string;
   isActive: boolean;
+  /** null = نامشخص */
+  womenBookingAllowed?: boolean | null;
   commissionAmount: number;
   slots: PitchSlot[];
   lat?: number;
@@ -26,7 +31,15 @@ export type Pitch = {
   /** درصد تخفیف وقتی ≤۳۰ دقیقه مانده */
   lastMinuteDiscount30?: number | null;
   lastMinuteMaxPct?: number | null;
-  owner?: { _id: string; name?: string; phone?: string } | null;
+  owner?: {
+    _id: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    email?: string;
+    sheba?: string;
+  } | null;
 };
 
 export const DEFAULT_SLOT_TIMES = [

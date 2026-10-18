@@ -2,6 +2,19 @@ const Pitch = require('../models/Pitch');
 const User = require('../models/User');
 const OwnerApplication = require('../models/OwnerApplication');
 const { createNotification } = require('./notify');
+const { normalizeSheba, isValidSheba } = require('../lib/sheba');
+
+function applyApplicationProfileToUser(user, app) {
+  if (app.firstName) user.firstName = app.firstName;
+  if (app.lastName) user.lastName = app.lastName;
+  const composed = `${app.firstName || ''} ${app.lastName || ''}`.trim();
+  if (composed.length >= 3) user.name = composed;
+  else if (app.contactName) user.name = app.contactName;
+  if (app.sheba && isValidSheba(app.sheba)) {
+    user.sheba = normalizeSheba(app.sheba);
+  }
+  if (app.email && !user.email) user.email = app.email;
+}
 
 async function notifyApplicantByPhone(phone, { title, body, type }) {
   const user = await User.findOne({ phone });
@@ -35,6 +48,10 @@ async function approveOwnerApplication(applicationId, { adminNote = '' } = {}) {
     tags: [],
     isActive: false,
     owner: null,
+    womenBookingAllowed:
+      app.womenBookingAllowed === true || app.womenBookingAllowed === false
+        ? app.womenBookingAllowed
+        : null,
   });
 
   const user = await User.findOne({ phone: app.phone });
@@ -45,8 +62,9 @@ async function approveOwnerApplication(applicationId, { adminNote = '' } = {}) {
   if (user) {
     if (user.role !== 'admin') {
       user.role = 'owner';
-      await user.save();
     }
+    applyApplicationProfileToUser(user, app);
+    await user.save();
     pitch.owner = user._id;
     pitch.isActive = true;
     await pitch.save();
@@ -147,8 +165,10 @@ async function linkApprovedApplicationsForPhone(phone) {
 
   if (user.role !== 'admin') {
     user.role = 'owner';
-    await user.save();
   }
+  const latestApp = apps[apps.length - 1];
+  if (latestApp) applyApplicationProfileToUser(user, latestApp);
+  await user.save();
 
   for (const app of apps) {
     await Pitch.findByIdAndUpdate(app.pitch, { owner: user._id, isActive: true });

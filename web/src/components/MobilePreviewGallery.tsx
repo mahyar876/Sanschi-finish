@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CollapsibleAsideList } from '@/components/CollapsibleFilterSection';
 
 type PageItem = {
   id: string;
@@ -157,7 +158,11 @@ export function MobilePreviewGallery() {
       </header>
 
       <div className="mobile-preview-body">
-        <aside className="mobile-preview-list" aria-label="فهرست صفحات">
+        <CollapsibleAsideList
+          className="mobile-preview-list"
+          title="فهرست صفحات"
+          summary={page.title}
+        >
           {groups.map((group) => (
             <div key={group} className="mobile-preview-group">
               <p className="mobile-preview-group-title">{group}</p>
@@ -179,7 +184,7 @@ export function MobilePreviewGallery() {
               </ul>
             </div>
           ))}
-        </aside>
+        </CollapsibleAsideList>
 
         <section className="mobile-preview-stage">
           <div className="mobile-preview-phone" aria-label="قاب موبایل">

@@ -12,10 +12,15 @@ export async function GET(req: Request) {
     'accept-language': 'fa',
   });
 
+  const contact =
+    process.env.NOMINATIM_CONTACT_EMAIL?.trim() ||
+    process.env.SITE_CONTACT_EMAIL?.trim() ||
+    'admin@sanschii.local';
+
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
       headers: {
-        'User-Agent': 'SanschiReserveFootball/1.0 (contact: admin@sanschi.local)',
+        'User-Agent': `SanschiiReserveFootball/1.0 (contact: ${contact})`,
       },
       next: { revalidate: 3600 },
     });

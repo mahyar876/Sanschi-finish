@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>گزارش امن‌سازی سانس‌چی</title>
+    <style>
+      :root {
+        --text: #1a1a1a;
+        --muted: #444;
+        --accent: #1a4d7f;
+        --warn: #8a4b00;
+        --border: #ccc;
+        --code-bg: #f4f4f4;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 2rem 2.5rem 3rem;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        font-size: 11.5pt;
+        line-height: 1.75;
+        color: var(--text);
+        max-width: 210mm;
+        margin-inline: auto;
+      }
+      h1 {
+        font-size: 22pt;
+        margin: 0 0 0.35rem;
+        color: var(--accent);
+      }
+      .subtitle {
+        color: var(--muted);
+        margin: 0 0 1.75rem;
+        font-size: 11pt;
+      }
+      h2 {
+        font-size: 14pt;
+        margin: 1.75rem 0 0.65rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 2px solid var(--accent);
+        page-break-after: avoid;
+      }
+      h3 {
+        font-size: 12pt;
+        margin: 1.15rem 0 0.4rem;
+        page-break-after: avoid;
+      }
+      p,
+      li {
+        margin: 0.4rem 0;
+      }
+      ul,
+      ol {
+        margin: 0.5rem 0 0.75rem;
+        padding-right: 1.35rem;
+      }
+      li {
+        margin: 0.35rem 0;
+      }
+      code,
+      pre {
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 9.5pt;
+        direction: ltr;
+        text-align: left;
+      }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        overflow-x: auto;
+        margin: 0.65rem 0 1rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .box {
+        border: 1px solid var(--border);
+        border-right: 4px solid var(--accent);
+        padding: 0.85rem 1rem;
+        margin: 1rem 0;
+        background: #fafafa;
+        border-radius: 4px;
+      }
+      .box.warn {
+        border-right-color: var(--warn);
+        background: #fff9f0;
+      }
+      .box strong {
+        display: block;
+        margin-bottom: 0.35rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.75rem 0 1rem;
+        font-size: 10.5pt;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 0.45rem 0.65rem;
+        text-align: right;
+        vertical-align: top;
+      }
+      th {
+        background: #eee;
+      }
+      .cover-meta {
+        font-size: 10pt;
+        color: var(--muted);
+        margin-top: 2rem;
+      }
+      .toc a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      @media print {
+        body {
+          padding: 0;
+        }
+        h2 {
+          page-break-before: auto;
+        }
+        pre,
+        .box,
+        table {
+          page-break-inside: avoid;
+        }
+        a {
+          color: var(--text);
+          text-decoration: none;
+        }
+      }
+      @page {
+        size: A4;
+        margin: 18mm 16mm;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>گزارش امن‌سازی پلتفرم سانس‌چی</h1>
+    <p class="subtitle">
+      مستند فارسیِ کارهای انجام‌شده در کد بک‌اند و فرانت — همراه با چک‌لیست استقرار و آزمون‌های خودکار
+    </p>
+    <p class="cover-meta">
+      پروژه: reserve-football (سانس‌چی)<br />
+      شاخهٔ کار: <code>security/hardening</code><br />
+      تاریخ گزارش: ۱۴۰۴/۰۷/۲۰ (۱۱ اکتبر ۲۰۲۵)<br />
+      مخزن: backend (Express + MongoDB) و web (Next.js)
+    </p>
+
+    <div class="box">
+      <strong>خلاصهٔ مدیریتی</strong>
+      هدف، بستن مسیرهای سوءاستفادهٔ رایج در یک اپ رزرو و پرداخت آنلاین بود: دسترسی غیرمجاز به
+      API، دستکاری مبلغ/کمیسیون از سمت کلاینت، دور زدن OTP، جعل جایزهٔ بازی پنالتی، و پیکربندی ناامن
+      در production. اصلاحات در لایهٔ HTTP (Helmet، CORS، rate limit)، احراز هویت (OTP امن، JWT)،
+      منطق مالی (پرداخت زرین‌پال، تأیید اتمی)، و محدودیت فیلدهای قابل‌نوشتن (mass assignment) اعمال
+      شد. یک اسکریپت دود (<code>npm run security:smoke</code>) برای بازبینی سریع ۹ سناریو اضافه شد.
+    </div>
+
+    <h2>فهرست</h2>
+    <ol class="toc">
+      <li><a href="#s1">مشکلات و ریسک‌هایی که برطرف شدند</a></li>
+      <li><a href="#s2">جزئیات فنی به تفکیک حوزه</a></li>
+      <li><a href="#s3">فایل‌ها و ماژول‌های جدید/تغییریافته</a></li>
+      <li><a href="#s4">متغیرهای محیط (env) مرتبط با امنیت</a></li>
+      <li><a href="#s5">آزمون‌های خودکار (Security Smoke Test)</a></li>
+      <li><a href="#s6">چک‌لیست استقرار در پنل میزبانی</a></li>
+      <li><a href="#s7">کارهای باقی‌مانده و محدودیت‌ها</a></li>
+      <li><a href="#s8">دستورات اجرا</a></li>
+    </ol>
+
+    <h2 id="s1">۱. مشکلات و ریسک‌هایی که برطرف شدند</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>حوزه</th>
+          <th>ریسک قبلی (خلاصه)</th>
+          <th>اقدام انجام‌شده</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>مدیریت زمین (ادمین)</td>
+          <td>امکان ایجاد/ویرایش زمین با secret ساده یا بدون JWT؛ ارسال فیلدهای دلخواه در body</td>
+          <td>
+            middleware <code>adminSecret</code>: اگر <code>ADMIN_SECRET</code> در header نباشد،
+            <strong>JWT + نقش admin</strong> الزامی است. فقط فیلدهای لیست سفید با
+            <code>pickPitchFields</code> ذخیره می‌شوند.
+          </td>
+        </tr>
+        <tr>
+          <td>پنل مالک زمین</td>
+          <td>مالک می‌توانست فیلدهای حساس (مثل کمیسیون) را عوض کند یا در production رزرو را دستی «پرداخت‌شده» کند</td>
+          <td>
+            PATCH مالک فقط فیلدهای مجاز (بدون <code>commissionAmount</code> و <code>owner</code>).
+            وضعیت <code>paid</code> در production فقط اگر <code>ALLOW_OWNER_MANUAL_PAY=true</code>؛
+            پیش‌فرض <strong>غیرفعال</strong>. مسیر مجاز از <code>confirmReservationPayment</code>.
+          </td>
+        </tr>
+        <tr>
+          <td>CORS و هدرهای HTTP</td>
+          <td>پذیرش مبدأهای نامشخص؛ افشای اطلاعات سرور</td>
+          <td>
+            <code>CORS_ORIGINS</code> در production؛ Helmet؛ حذف <code>X-Powered-By</code>؛
+            <code>trust proxy</code> برای rate limit پشت Render؛ <code>X-Request-Id</code> برای ردیابی لاگ.
+          </td>
+        </tr>
+        <tr>
+          <td>OTP ورود</td>
+          <td>کد ضعیف/قابل حدس؛ ذخیرهٔ plain text؛ spam SMS؛ افشای ثبت بودن شماره</td>
+          <td>
+            مدل <code>OtpChallenge</code> در MongoDB؛ HMAC-SHA256 با pepper؛ کد ۶ رقمی؛ TTL و سقف تلاش؛
+            cooldown ارسال؛ پاسخ یکسان برای شمارهٔ ناموجود (anti-enumeration)؛ rate limit روی
+            <code>/api/auth</code>.
+          </td>
+        </tr>
+        <tr>
+          <td>پرداخت زرین‌پال</td>
+          <td>اعتماد به مبلغ کلاینت؛ پرداخت رزرو دیگران</td>
+          <td>
+            مبلغ و رزرو فقط از DB؛ فیلتر <code>user: req.user._id</code>؛ authority روی رزرو؛ verify
+            سرور؛ تأیید idempotent و اتمی در <code>confirmReservationPayment</code>.
+          </td>
+        </tr>
+        <tr>
+          <td>Mock pay / refund / wallet</td>
+          <td>فعال ماندن در production</td>
+          <td>
+            <code>ALLOW_MOCK_PAY</code>، <code>ALLOW_MOCK_REFUND</code> در production باید false؛
+            topup کیف پول در production مسدود مگر mock صریحاً فعال باشد.
+          </td>
+        </tr>
+        <tr>
+          <td>بازی پنالتی و کد تخفیف</td>
+          <td>ارسال مستقیم <code>goalsScored</code> بدون بازی واقعی</td>
+          <td>
+            نشست <code>PenaltyGameSession</code>؛ <code>sessionId</code> یک‌بارمصرف؛ انقضا؛ حداقل زمان
+            بازی در production (~۴۵ ثانیه)؛ rate limit جدا.
+          </td>
+        </tr>
+        <tr>
+          <td>درخواست همکاری مالک</td>
+          <td>spam فرم عمومی</td>
+          <td>rate limit (۵ درخواست در ساعت به ازای IP)؛ اعتبارسنجی شبا (<code>lib/sheba.js</code>).</td>
+        </tr>
+        <tr>
+          <td>JWT</td>
+          <td>secret کوتاه یا پیش‌فرض در production</td>
+          <td>در <code>NODE_ENV=production</code> بدون <code>JWT_SECRET</code> ≥ ۳۲ کاراکتر، سرور خطا می‌دهد.</td>
+        </tr>
+        <tr>
+          <td>Health / readiness</td>
+          <td>load balancer فکر می‌کند سرویس سالم است در حالی که DB قطع است</td>
+          <td><code>/api/health</code> → 503 اگر MongoDB وصل نباشد؛ <code>/api/health/live</code> برای liveness.</td>
+        </tr>
+        <tr>
+          <td>فرانت Next.js</td>
+          <td>مسیرهای dev در production؛ OTP ۴ رقمی</td>
+          <td>
+            middleware مسیرهای <code>/payment/test</code> و <code>/mobile-preview</code> را در production
+            به خانه redirect می‌کند؛ ورود OTP ۶ رقمی؛ پیش‌نمایش UI با query <code>uiPreview=1</code> برای
+            iframe (بدون دور زدن OTP واقعی در prod).
+          </td>
+        </tr>
+        <tr>
+          <td>وابستگی‌ها</td>
+          <td>CVE در پکیج‌ها</td>
+          <td>افزودن <code>helmet</code>؛ ارتقای <code>nodemailer</code> — audit npm هنوز موارد high دارد (نیاز بررسی دوره‌ای).</td>
+        </tr>
+        <tr>
+          <td>مستندات استقرار</td>
+          <td>secretها در repo یا بدون راهنمای Render</td>
+          <td><code>deploy-security-checklist-fa.md</code>، <code>render.example.yaml</code> (بدون secret واقعی)، به‌روزرسانی <code>backend/.env.example</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="s2">۲. جزئیات فنی به تفکیک حوزه</h2>
+
+    <h3>۲.۱ لایهٔ HTTP (<code>backend/server.js</code>)</h3>
+    <ul>
+      <li><strong>Helmet:</strong> هدرهای امنیتی پیش‌فرض؛ <code>crossOriginResourcePolicy: cross-origin</code> برای assetها.</li>
+      <li><strong>CORS:</strong> فقط مبدأهای لیست <code>CORS_ORIGINS</code>؛ در development localhost مجاز؛ در production بدون env خالی = هیچ مبدأ مرورگری مجاز نیست.</li>
+      <li><strong>Rate limiting:</strong> <code>authLimiter</code> روی <code>/api/auth</code> (پیش‌فرض ۳۰ در ۱۵ دقیقه)؛ <code>apiLimiter</code> روی بقیهٔ API (۵۰۰ در ۱۵ دقیقه)؛ health و auth از apiLimiter مستثنی.</li>
+      <li><strong>بدنهٔ JSON:</strong> سقف اندازه با <code>JSON_BODY_LIMIT</code> (پیش‌فرض 4mb).</li>
+      <li><strong>خطای سراسری:</strong> handler یکپارچه؛ پیام عمومی در production؛ لاگ با <code>requestId</code>.</li>
+      <li><strong>MongoDB:</strong> خروج اجباری اگر <code>MONGO_URI</code> تنظیم نشده باشد.</li>
+    </ul>
+
+    <h3>۲.۲ OTP (<code>lib/otpStore.js</code>, <code>models/OtpChallenge.js</code>, <code>routes/auth.js</code>)</h3>
+    <ul>
+      <li>تولید کد: <code>crypto.randomInt(100000, 999999)</code>.</li>
+      <li>ذخیره: فقط hash با HMAC و pepper (<code>OTP_PEPPER</code> یا <code>JWT_SECRET</code>).</li>
+      <li>مقایسه: <code>crypto.timingSafeEqual</code> برای جلوگیری از timing attack.</li>
+      <li>محدودیت ارسال: cooldown ۶۰ ثانیه؛ حداکثر ۵ ارسال در پنجرهٔ ۱۵ دقیقه.</li>
+      <li>محدودیت verify: حداکثر ۵ تلاش؛ سپس حذف challenge.</li>
+      <li>TTL پیش‌فرض: ۵ دقیقه؛ index TTL روی <code>expiry</code> در MongoDB.</li>
+      <li><code>send-otp</code>: اگر کاربر با آن شماره وجود نداشته باشد، همان پاسخ موفق یکسان برمی‌گردد (بدون افشای ثبت‌نام).</li>
+      <li>SMS: فقط با <code>SMS_ENABLED=true</code>؛ در production بدون SMS، OTP ارسال نمی‌شود (هشدار در لاگ).</li>
+      <li>فرانت: <code>LoginView.tsx</code> — ورودی ۶ رقمی.</li>
+    </ul>
+
+    <h3>۲.۳ احراز هویت JWT (<code>middleware/authController.js</code>)</h3>
+    <ul>
+      <li>Bearer token در header <code>Authorization</code>.</li>
+      <li><code>adminOnly</code> برای مسیرهای مدیریت.</li>
+      <li>انقضای token قابل تنظیم با <code>JWT_EXPIRES_IN</code> (پیش‌فرض 7d).</li>
+    </ul>
+
+    <h3>۲.۴ زمین‌ها — ادمین (<code>routes/pitches.js</code>, <code>lib/pitchAdminFields.js</code>)</h3>
+    <ul>
+      <li>POST/PATCH/DELETE زمین: middleware <code>adminSecret</code>.</li>
+      <li>فیلدهای قابل نوشتن ادمین در آرایهٔ ثابت؛ سایر کلیدهای body نادیده گرفته می‌شوند.</li>
+      <li><code>commissionAmount</code> فقط توسط ادمین (در لیست سفید ادمین)، نه مالک.</li>
+    </ul>
+
+    <h3>۲.۵ مالک (<code>routes/owner.js</code>)</h3>
+    <ul>
+      <li><code>loadOwnedPitch</code>: فقط مالک همان زمین یا admin.</li>
+      <li>PATCH زمین: whitelist فیلدها (قیمت، آدرس، last-minute و … بدون کمیسیون).</li>
+      <li>تغییر وضعیت رزرو به paid: در production مسدود مگر <code>ALLOW_OWNER_MANUAL_PAY=true</code>.</li>
+    </ul>
+
+    <h3>۲.۶ پرداخت (<code>routes/payment.js</code>, <code>services/paymentConfirm.js</code>)</h3>
+    <ul>
+      <li>درخواست درگاه: JWT اجباری؛ رزرو با <code>user</code> لاگین‌شده؛ جمع مبلغ از رکوردهای DB.</li>
+      <li>callback: verify با API زرین‌پال؛ سپس <code>confirmReservationPayment</code>.</li>
+      <li>تأیید اتمی: <code>findOneAndUpdate</code> با شرط «هنوز successful نشده» و booking معتبر؛ جلوگیری از double-spend روی یک رزرو.</li>
+      <li>کمیسیون از snapshot رزرو یا مقدار فعلی زمین در لحظهٔ تأیید.</li>
+    </ul>
+
+    <h3>۲.۷ پنالتی (<code>lib/penaltyReward.js</code>, <code>routes/discounts.js</code>)</h3>
+    <ul>
+      <li>جریان: POST <code>/penalty-reward/session</code> → بازی → POST <code>/penalty-reward</code> با sessionId.</li>
+      <li>sessionId: ۲۴ بایت random hex؛ یک‌بار مصرف با <code>usedAt</code>؛ انقضا ۲۰ دقیقه (قابل تنظیم).</li>
+      <li>حداقل مدت بین ایجاد و claim در production: ۴۵ ثانیه (جلوگیری از اسکریپت فوری).</li>
+      <li>rate limit: <code>RATE_LIMIT_PENALTY_MAX</code> (پیش‌فرض ۲۰ در ۱۵ دقیقه).</li>
+    </ul>
+
+    <h3>۲.۸ کیف پول و mock (<code>routes/wallet.js</code>, <code>routes/reservations.js</code>)</h3>
+    <ul>
+      <li>topup و mock pay فقط development یا با flag صریح.</li>
+      <li>سقف و کف مبلغ topup آزمایشی.</li>
+      <li>تراکنش‌های wallet فقط برای کاربر لاگین‌شده؛ limit query برای لیست.</li>
+    </ul>
+
+    <h3>۲.۹ فرانت (<code>web/middleware.ts</code>)</h3>
+    <ul>
+      <li>در production مسیرهای تست پرداخت و mobile-preview بسته می‌شوند.</li>
+      <li><code>/responsive-preview</code> برای بررسی UI مجاز است (با دادهٔ demo/preview).</li>
+    </ul>
+
+    <h2 id="s3">۳. فایل‌ها و ماژول‌های مهم</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>مسیر</th>
+          <th>نقش امنیتی</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>backend/server.js</code></td><td>Helmet, CORS, rate limits, health, error handler</td></tr>
+        <tr><td><code>backend/lib/rateLimits.js</code></td><td>authLimiter و apiLimiter</td></tr>
+        <tr><td><code>backend/lib/otpStore.js</code></td><td>صدور و verify OTP</td></tr>
+        <tr><td><code>backend/models/OtpChallenge.js</code></td><td>ذخیرهٔ challenge در DB</td></tr>
+        <tr><td><code>backend/lib/pitchAdminFields.js</code></td><td>whitelist فیلد زمین (ادمین)</td></tr>
+        <tr><td><code>backend/lib/penaltyReward.js</code></td><td>نشست بازی پنالتی</td></tr>
+        <tr><td><code>backend/models/PenaltyGameSession.js</code></td><td>ذخیرهٔ session</td></tr>
+        <tr><td><code>backend/lib/sheba.js</code></td><td>اعتبارسنجی شبا</td></tr>
+        <tr><td><code>backend/scripts/security-smoke-test.js</code></td><td>۹ آزمون دود</td></tr>
+        <tr><td><code>render.example.yaml</code></td><td>نمونه env امن Render</td></tr>
+        <tr><td><code>docs/deploy-security-checklist-fa.md</code></td><td>چک‌لیست Atlas / Render / DNS</td></tr>
+        <tr><td><code>web/middleware.ts</code></td><td>بستن مسیرهای dev در production</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s4">۴. متغیرهای محیط (env) مرتبط با امنیت</h2>
+    <p>جزئیات کامل در <code>backend/.env.example</code> و <code>render.example.yaml</code>.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>متغیر</th>
+          <th>production (توصیه)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>NODE_ENV</code></td><td><code>production</code></td></tr>
+        <tr><td><code>JWT_SECRET</code></td><td>تصادفی ≥ ۳۲ کاراکتر؛ فقط در پنل میزبانی</td></tr>
+        <tr><td><code>MONGO_URI</code></td><td>فقط سرور؛ IP allowlist در Atlas</td></tr>
+        <tr><td><code>CORS_ORIGINS</code></td><td>دامنه(های) واقعی فرانت</td></tr>
+        <tr><td><code>ALLOW_MOCK_PAY / ALLOW_MOCK_REFUND</code></td><td><code>false</code></td></tr>
+        <tr><td><code>ALLOW_OWNER_MANUAL_PAY</code></td><td><code>false</code> (مگر سیاست کسب‌وکار)</td></tr>
+        <tr><td><code>ZARINPAL_SANDBOX</code></td><td><code>false</code> + merchant واقعی</td></tr>
+        <tr><td><code>SMS_ENABLED</code></td><td><code>true</code> + کلید کاوه‌نگار</td></tr>
+        <tr><td><code>OTP_PEPPER</code></td><td>رشتهٔ جدا از JWT (اختیاری ولی توصیه‌شده)</td></tr>
+        <tr><td><code>RATE_LIMIT_*</code></td><td>تنظیم بر اساس ترافیک</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s5">۵. آزمون‌های خودکار (Security Smoke Test)</h2>
+    <p>اسکریپت: <code>backend/scripts/security-smoke-test.js</code> — اجرا: <code>cd backend && npm run security:smoke</code></p>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>سناریو</th>
+          <th>انتظار</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>GET <code>/api/health/live</code></td><td>200 و <code>live: true</code></td></tr>
+        <tr><td>2</td><td>GET <code>/api/reservations</code> بدون token</td><td>401</td></tr>
+        <tr><td>3</td><td>POST <code>/api/pitches</code> بدون auth</td><td>401 یا 403</td></tr>
+        <tr><td>4</td><td>GET pitches با Origin <code>evil.example</code></td><td>بدون ACAO برای مبدأ جعلی</td></tr>
+        <tr><td>5</td><td>send-otp برای شماره</td><td>200 یکسان (anti-enumeration)</td></tr>
+        <tr><td>6</td><td>verify-otp با کد غلط</td><td>400 یا 429</td></tr>
+        <tr><td>7</td><td>penalty-reward بدون sessionId</td><td>400</td></tr>
+        <tr><td>8</td><td>ایجاد session پنالتی</td><td>200 + sessionId</td></tr>
+        <tr><td>9</td><td>penalty-reward با session نامعتبر</td><td>400</td></tr>
+      </tbody>
+    </table>
+    <p>نتیجهٔ مورد انتظار در محیط لوکال با بک‌اند روشن: <strong>۹/۹ PASS</strong>.</p>
+
+    <h2 id="s6">۶. چک‌لیست استقرار در پنل (خلاصه)</h2>
+    <p>نسخهٔ کامل: <code>docs/deploy-security-checklist-fa.md</code></p>
+    <h3>MongoDB Atlas</h3>
+    <ul>
+      <li>کاربر DB با حداقل دسترسی؛ TLS؛ Network Access محدود (نه <code>0.0.0.0/0</code> دائمی).</li>
+      <li>Cloud Backup و تست restore فصلی روی staging.</li>
+    </ul>
+    <h3>Render (API)</h3>
+    <ul>
+      <li>env طبق <code>render.example.yaml</code>؛ health check روی <code>/api/health</code>.</li>
+      <li>mock pay/refund و manual pay مالک غیرفعال.</li>
+    </ul>
+    <h3>فرانت / DNS</h3>
+    <ul>
+      <li>هیچ secret در <code>NEXT_PUBLIC_*</code>؛ HTTPS؛ CDN/WAF (مثلاً Cloudflare) برای DDoS لایه شبکه.</li>
+      <li>در صورت نشت secret در Git: rotate فوری (JWT، درگاه، SMS، پسورد DB).</li>
+    </ul>
+
+    <h2 id="s7">۷. کارهای باقی‌مانده و محدودیت‌ها</h2>
+    <div class="box warn">
+      <strong>خارج از کد — الزامی برای امنیت واقعی</strong>
+      Express و rate limit داخلی در برابر حملات بزرگ DDoS کافی نیستند؛ WAF/CDN لازم است. Atlas باید IP محدود
+      شود. SMS باید در production فعال باشد وگرنه OTP عملاً کار نمی‌کند.
+    </div>
+    <ul>
+      <li><strong>آزمون نشده در smoke:</strong> رزرو هم‌زمان دو کاربر روی یک slot؛ callback واقعی زرین‌پال؛ بازیابی backup Atlas.</li>
+      <li><strong>npm audit:</strong> پس از hardening هنوز advisoryهای high ممکن است باقی بماند — npm audit و به‌روزرسانی دوره‌ای.</li>
+      <li><strong>ADMIN_SECRET:</strong> اختیاری برای اسکریپت‌ها؛ در production ترجیحاً فقط JWT admin.</li>
+      <li><strong>فایل <code>render.yaml</code> حذف و به <code>render.example.yaml</code> جایگزین شد</strong> تا secret در repo commit نشود.</li>
+    </ul>
+
+    <h2 id="s8">۸. دستورات اجرا</h2>
+    <pre>cd backend
+npm install
+npm start
+
+# در ترمینال دیگر:
+cd backend
+npm run security:smoke
+
+# یا با آدرس staging:
+node scripts/security-smoke-test.js https://your-api.example.com</pre>
+
+    <p style="margin-top: 2rem; font-size: 10pt; color: var(--muted);">
+      — پایان گزارش —<br />
+      برای به‌روزرسانی این PDF، فایل <code>docs/amniat-sanschii.html</code> را ویرایش و دوباره به PDF تبدیل کنید
+      (چاپ از مرورگر → Save as PDF، یا ابزار headless Chrome).
+    </p>
+  </body>
+</html>

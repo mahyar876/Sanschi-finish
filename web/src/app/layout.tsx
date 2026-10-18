@@ -8,7 +8,7 @@ const vazir = Vazirmatn({
   display: 'swap',
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://sanschi.ir';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://sanschii.ir';
 
 export const viewport = {
   width: 'device-width',

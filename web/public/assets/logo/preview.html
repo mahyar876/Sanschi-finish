@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>پیش‌نمایش لوگو — سانس‌چی</title>
+    <style>
+      @font-face {
+        font-family: 'Vazirmatn';
+        font-style: normal;
+        font-weight: 800;
+        font-display: swap;
+        src: url('./fonts/vazirmatn-arabic-800.woff2') format('woff2');
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Vazirmatn, system-ui, sans-serif;
+        background: #07100d;
+        color: #f0faf4;
+        padding: 2rem 1.25rem 3rem;
+      }
+      h1 {
+        font-size: 1.1rem;
+        font-weight: 800;
+        margin: 0 0 0.35rem;
+        color: #26b36a;
+      }
+      p.lead {
+        margin: 0 0 2rem;
+        color: #7fa98c;
+        font-size: 0.9rem;
+        max-width: 42rem;
+      }
+      .grid {
+        display: grid;
+        gap: 2rem;
+        max-width: 920px;
+      }
+      @media (min-width: 720px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+          align-items: start;
+        }
+      }
+      .card {
+        border: 1px solid rgba(38, 179, 106, 0.14);
+        border-radius: 12px;
+        background: #0d1a14;
+        padding: 1.25rem;
+      }
+      .card h2 {
+        margin: 0 0 0.25rem;
+        font-size: 0.95rem;
+      }
+      .card .meta {
+        margin: 0 0 1rem;
+        font-size: 0.75rem;
+        color: #7fa98c;
+      }
+      .stage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        border-radius: 8px;
+        background: #07100d;
+      }
+      .stage.insta {
+        aspect-ratio: 1;
+        max-width: 280px;
+        margin-inline: auto;
+      }
+      .word-web {
+        font-size: clamp(2rem, 8vw, 3.25rem);
+        font-weight: 800;
+        color: #26b36a;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .word-insta {
+        font-size: clamp(2.5rem, 12vw, 3.5rem);
+        font-weight: 800;
+        color: #26b36a;
+        line-height: 1;
+      }
+      .stage object {
+        width: 100%;
+        max-height: 120px;
+        display: block;
+      }
+      .stage.insta object {
+        max-height: none;
+      }
+      .sub {
+        margin-top: 1rem;
+        font-size: 0.72rem;
+        color: #7fa98c;
+      }
+      a.file {
+        display: inline-block;
+        margin-top: 0.75rem;
+        font-size: 0.78rem;
+        color: #2ec476;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>پیش‌نمایش لوگو (تایپ ساده)</h1>
+    <p class="lead">
+      بالا: HTML با فونت محلی (همیشه درست). پایین: فایل SVG با فونت جاسازی‌شده — بعد از
+      <code>node scripts/generate-logos.mjs</code> به‌روز می‌شود.
+    </p>
+    <div class="grid">
+      <section class="card">
+        <h2>وب — افقی</h2>
+        <p class="meta">sanschii-wordmark-simple.svg</p>
+        <div class="stage">
+          <span class="word-web">سانس‌چی</span>
+        </div>
+        <p class="sub">SVG:</p>
+        <div class="stage web">
+          <object type="image/svg+xml" data="./sanschii-wordmark-simple.svg" aria-label="لوگوی وب">
+            SVG
+          </object>
+        </div>
+        <a class="file" href="./sanschii-wordmark-simple.svg">باز کردن SVG</a>
+      </section>
+      <section class="card">
+        <h2>اینستاگرام — مربع</h2>
+        <p class="meta">sanschii-insta-word-simple.svg</p>
+        <div class="stage insta">
+          <span class="word-insta">سانس‌چی</span>
+        </div>
+        <p class="sub">SVG:</p>
+        <div class="stage insta">
+          <object type="image/svg+xml" data="./sanschii-insta-word-simple.svg" aria-label="لوگوی اینستا">
+            SVG
+          </object>
+        </div>
+        <a class="file" href="./sanschii-insta-word-simple.svg">باز کردن SVG</a>
+      </section>
+    </div>
+  </body>
+</html>

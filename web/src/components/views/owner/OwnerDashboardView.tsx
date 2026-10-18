@@ -67,8 +67,8 @@ export function OwnerDashboardView() {
             : 'پس از اتصال زمین، آمار دقیق‌تر نمایش داده می‌شود.'}
           {isDemoFrontend() && ' (حالت نمایشی)'}
         </p>
-        <div className="data-table-wrap">
-          <table className="data-table">
+        <div className="data-table-wrap owner-card-table-wrap">
+          <table className="data-table owner-card-table">
             <thead>
               <tr>
                 <th>کد</th>
@@ -81,11 +81,11 @@ export function OwnerDashboardView() {
             <tbody>
               {recent.map((r) => (
                 <tr key={r._id}>
-                  <td>{r.code}</td>
-                  <td>{r.date}</td>
-                  <td>{r.slotTime}</td>
-                  <td>{priceFa(r.amount)}</td>
-                  <td>
+                  <td data-label="کد">{r.code}</td>
+                  <td data-label="تاریخ">{r.date}</td>
+                  <td data-label="سانس">{r.slotTime}</td>
+                  <td data-label="مبلغ">{priceFa(r.amount)}</td>
+                  <td data-label="وضعیت">
                     <span className={`badge ${statusBadgeClass(r.status)}`}>
                       {RESERVATION_STATUS_FA[r.status] || r.status}
                     </span>

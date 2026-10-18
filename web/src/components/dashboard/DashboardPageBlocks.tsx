@@ -67,14 +67,16 @@ export function ListToolbar({
   searchValue,
   onSearchChange,
   filters,
+  className,
 }: {
   searchPlaceholder?: string;
   searchValue?: string;
   onSearchChange?: (v: string) => void;
   filters?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="dash-list-toolbar">
+    <div className={['dash-list-toolbar', className].filter(Boolean).join(' ')}>
       {onSearchChange && (
         <input
           type="search"

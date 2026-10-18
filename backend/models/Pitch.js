@@ -23,14 +23,25 @@ const pitchSchema = new mongoose.Schema({
   lat: { type: Number },
   lng: { type: Number },
   desc: { type: String },
+  /** قوانین مجموعه — متن آزاد (هر خط یک بند) */
+  rulesText: { type: String, default: '' },
+  /** شناسه امکانات — هم‌خوان با web/src/lib/pitch-amenities.ts */
+  amenities: { type: [String], default: [] },
+  /** حداکثر نفرات مجاز در سانس (اختیاری) */
+  maxCapacity: { type: Number, min: 1, max: 99, default: null },
   tags: [String],
   color1: { type: String, default: '#0d3320' },
   color2: { type: String, default: '#051a0e' },
   image: { type: String, default: '' }, // عکس زمین (base64 data-url)
   isActive: { type: Boolean, default: true },
+  /** ترتیب نمایش در گالری و پنل ادمین (کمتر = بالاتر) */
+  sortOrder: { type: Number, default: 0 },
 
-  // ── کمیسیون سانس‌یار ──
-  // مبلغ ثابت (تومان) که سانس‌یار به ازای هر رزروی که از این زمین پرداخت
+  /** null = هنوز مشخص نشده؛ true = رزرو برای بانوان مجاز؛ false = فقط آقایان */
+  womenBookingAllowed: { type: Boolean, default: null },
+
+  // ── کمیسیون سانس‌چی ──
+  // مبلغ ثابت (تومان) که سانس‌چی به ازای هر رزروی که از این زمین پرداخت
   // می‌شه برمی‌داره. فقط ادمین این رو تنظیم می‌کنه؛ صاحب زمین فقط می‌بینه.
   // این مبلغ هیچ‌وقت روی صفحات مشتری (reserve/payment) نمایش داده نمی‌شه؛
   // مشتری همیشه همون قیمت کامل سانس رو پرداخت می‌کنه.

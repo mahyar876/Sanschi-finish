@@ -1,0 +1,33 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 320"
+  role="img"
+  aria-label="3'F3��"
+>
+  <defs>
+    <filter id="sanschiiGlow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- RTL text (font loaded in site; for external export you may need to ensure the font is available) -->
+  <text
+    x="600"
+    y="210"
+    text-anchor="middle"
+    direction="rtl"
+    unicode-bidi="bidi-override"
+    font-family="Vazirmatn, Vazir, system-ui, sans-serif"
+    font-size="170"
+    font-weight="800"
+    fill="#26b36a"
+    filter="url(#sanschiiGlow)"
+  >
+    3'F3��
+  </text>
+</svg>
+

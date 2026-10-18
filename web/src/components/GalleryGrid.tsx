@@ -11,6 +11,17 @@ import {
 } from '@/lib/tehran-zones';
 import { VenueCard } from './VenueCard';
 import { numFa } from '@/lib/jalali';
+import {
+  GalleryFilterSidebar,
+  EMPTY_GALLERY_SIDEBAR_FILTERS,
+  type GallerySidebarFilters,
+} from '@/components/GalleryFilterSidebar';
+import {
+  SLOT_PERIOD_OPTIONS,
+  catalogMatchesMinCapacity,
+  catalogMatchesSlotPeriods,
+  type SlotPeriodFilter,
+} from '@/lib/gallery-filters';
 
 type Filter = 'all' | VenueCategory;
 
@@ -41,6 +52,9 @@ export function GalleryGrid() {
   const [filter, setFilter] = useState<Filter>('all');
   const [zone, setZone] = useState<TehranZone | 'all'>('all');
   const [sort, setSort] = useState<SortId>('default');
+  const [sidebarFilters, setSidebarFilters] = useState<GallerySidebarFilters>(
+    EMPTY_GALLERY_SIDEBAR_FILTERS,
+  );
 
   useEffect(() => {
     void fetchCatalog().then(({ items: list, live: fromApi }) => {
@@ -53,11 +67,24 @@ export function GalleryGrid() {
     let rows =
       filter === 'all' ? [...items] : items.filter((v) => v.category === filter);
     if (zone !== 'all') rows = rows.filter((v) => resolveZone(v) === zone);
+    if (sidebarFilters.pitchSize !== 'all') {
+      rows = rows.filter((v) => v.size === sidebarFilters.pitchSize);
+    }
+    if (sidebarFilters.minCapacity > 0) {
+      rows = rows.filter((v) =>
+        catalogMatchesMinCapacity(v.maxCapacity, sidebarFilters.minCapacity),
+      );
+    }
+    if (sidebarFilters.slotPeriods.length > 0) {
+      rows = rows.filter((v) =>
+        catalogMatchesSlotPeriods(v.slotTimes, sidebarFilters.slotPeriods),
+      );
+    }
     if (sort === 'price-asc') rows.sort((a, b) => a.priceFrom - b.priceFrom);
     if (sort === 'price-desc') rows.sort((a, b) => b.priceFrom - a.priceFrom);
     if (sort === 'avail') rows.sort((a, b) => b.availSlots - a.availSlots);
     return rows;
-  }, [items, filter, zone, sort]);
+  }, [items, filter, zone, sort, sidebarFilters]);
 
   return (
     <>
@@ -67,78 +94,119 @@ export function GalleryGrid() {
         </p>
       )}
 
-      <div className="gallery-filters">
-        <div className="gallery-filter-block">
-          <span className="gallery-filter-label">نوع مجموعه</span>
-          <div className="chips chip-scroll-wrap" role="tablist" aria-label="فیلتر نوع زمین">
-            {FILTERS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                role="tab"
-                aria-selected={filter === f.id}
-                className={filter === f.id ? 'chip active' : 'chip'}
-                onClick={() => setFilter(f.id)}
+      <div className="gallery-layout">
+        <div className="gallery-filters-top">
+          <div className="gallery-filters">
+            <div className="gallery-filter-block">
+              <span className="gallery-filter-label">نوع مجموعه</span>
+              <div className="chips chip-scroll-wrap" role="tablist" aria-label="فیلتر نوع زمین">
+                {FILTERS.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={filter === f.id}
+                    className={filter === f.id ? 'chip active' : 'chip'}
+                    onClick={() => setFilter(f.id)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="gallery-filter-block">
+              <span className="gallery-filter-label">محدوده تهران</span>
+              <div className="chips chip-scroll-wrap" role="tablist" aria-label="فیلتر محدوده">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={zone === 'all'}
+                  className={zone === 'all' ? 'chip active' : 'chip'}
+                  onClick={() => setZone('all')}
+                >
+                  همه
+                </button>
+                {TEHRAN_ZONE_ORDER.map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    role="tab"
+                    aria-selected={zone === z}
+                    className={zone === z ? 'chip active' : 'chip'}
+                    onClick={() => setZone(z)}
+                  >
+                    {TEHRAN_ZONE_LABEL[z]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="gallery-filter-block gallery-filter-block--sort">
+              <span className="gallery-filter-label">مرتب‌سازی</span>
+              <div className="chips chip-scroll-wrap" role="tablist" aria-label="مرتب‌سازی">
+                {SORT_OPTIONS.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={sort === s.id}
+                    className={sort === s.id ? 'chip active' : 'chip'}
+                    onClick={() => setSort(s.id)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="gallery-filter-block">
+              <span className="gallery-filter-label">ساعت سانس</span>
+              <div
+                className="chips chip-scroll-wrap"
+                role="group"
+                aria-label="فیلتر ساعت سانس"
               >
-                {f.label}
-              </button>
-            ))}
+                {SLOT_PERIOD_OPTIONS.map((p) => {
+                  const active = sidebarFilters.slotPeriods.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      aria-pressed={active}
+                      className={active ? 'chip active' : 'chip'}
+                      onClick={() => {
+                        const set = new Set(sidebarFilters.slotPeriods);
+                        if (set.has(p.id)) set.delete(p.id);
+                        else set.add(p.id);
+                        setSidebarFilters({
+                          ...sidebarFilters,
+                          slotPeriods: [...set] as SlotPeriodFilter[],
+                        });
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <GalleryFilterSidebar
+              filters={sidebarFilters}
+              onChange={setSidebarFilters}
+            />
           </div>
         </div>
 
-        <div className="gallery-filter-block">
-          <span className="gallery-filter-label">محدوده تهران</span>
-          <div className="chips chip-scroll-wrap" role="tablist" aria-label="فیلتر محدوده">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={zone === 'all'}
-              className={zone === 'all' ? 'chip active' : 'chip'}
-              onClick={() => setZone('all')}
-            >
-              همه
-            </button>
-            {TEHRAN_ZONE_ORDER.map((z) => (
-              <button
-                key={z}
-                type="button"
-                role="tab"
-                aria-selected={zone === z}
-                className={zone === z ? 'chip active' : 'chip'}
-                onClick={() => setZone(z)}
-              >
-                {TEHRAN_ZONE_LABEL[z]}
-              </button>
-            ))}
-          </div>
+        <p className="result-count">
+          {numFa(list.length)} مورد در تهران — رزرو آنلاین چمن، فوتسال و والیبال
+        </p>
+        <div className="venue-grid">
+          {list.map((v) => (
+            <VenueCard key={v.pitchId} venue={v} />
+          ))}
         </div>
-
-        <div className="gallery-filter-block gallery-filter-block--sort">
-          <span className="gallery-filter-label">مرتب‌سازی</span>
-          <div className="chips chip-scroll-wrap" role="tablist" aria-label="مرتب‌سازی">
-            {SORT_OPTIONS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                role="tab"
-                aria-selected={sort === s.id}
-                className={sort === s.id ? 'chip active' : 'chip'}
-                onClick={() => setSort(s.id)}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <p className="result-count">
-        {numFa(list.length)} مورد در تهران — رزرو آنلاین چمن، فوتسال و والیبال
-      </p>
-      <div className="venue-grid">
-        {list.map((v) => (
-          <VenueCard key={v.pitchId} venue={v} />
-        ))}
       </div>
     </>
   );

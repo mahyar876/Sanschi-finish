@@ -1,6 +1,6 @@
 // routes/payment.js
 // ════════════════════════════════════════════════════════════════
-//  درگاه پرداخت زرین‌پال — سانس‌یار
+//  درگاه پرداخت زرین‌پال — سانس‌چی
 //  جریان:
 //   1) فرانت  →  POST /api/payment/zarinpal/request   (با JWT)
 //        بک‌اند تراکنش رو نزد زرین‌پال می‌سازد، authority را روی خود
@@ -20,7 +20,7 @@
 //   ZARINPAL_SANDBOX=true            # برای تست؛ در production = false
 //   ZARINPAL_CURRENCY=rial           # rial یا toman (قیمت سایت تومان است)
 //   BASE_URL=http://localhost:5000   # آدرس خود بک‌اند (برای callback)
-//   FRONTEND_URL=http://localhost:5000   # آدرس فرانت (برای ریدایرکت نهایی)
+//   FRONTEND_URL=http://localhost:3000   # آدرس فرانت (برای ریدایرکت نهایی)
 // ════════════════════════════════════════════════════════════════
 
 const express = require('express');
@@ -41,7 +41,7 @@ const MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID || '';
 const SANDBOX = String(process.env.ZARINPAL_SANDBOX || 'true') === 'true';
 const CURRENCY = (process.env.ZARINPAL_CURRENCY || 'rial').toLowerCase();
 const BASE_URL = (process.env.BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5000').replace(/\/$/, '');
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 const ZP_BASE = SANDBOX
   ? 'https://sandbox.zarinpal.com'
@@ -80,7 +80,10 @@ router.post('/zarinpal/request', protect, async (req, res) => {
         user: req.user._id,
       });
     } else if (reservationId && !String(reservationId).startsWith('mock')) {
-      const r = await Reservation.findById(reservationId);
+      const r = await Reservation.findOne({
+        _id: reservationId,
+        user: req.user._id,
+      });
       if (r) reservations = [r];
     }
 
@@ -152,7 +155,7 @@ router.post('/zarinpal/request', protect, async (req, res) => {
         merchant_id: MERCHANT_ID,
         amount: gatewayAmount,
         callback_url: callbackUrl,
-        description: 'پرداخت رزرو سانس‌یار',
+        description: 'پرداخت رزرو سانس‌چی',
         metadata: { mobile: req.user.phone || '' },
       }),
     });

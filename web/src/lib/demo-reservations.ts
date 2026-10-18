@@ -8,7 +8,7 @@ export type DemoReservation = {
   pitch?: { name: string };
 };
 
-const KEY = 'sanschi_demo_reservations';
+const KEY = 'sanschii_demo_reservations';
 
 function read(): DemoReservation[] {
   if (typeof window === 'undefined') return [];

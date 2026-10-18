@@ -1,0 +1,80 @@
+# نمونه استقرار Render — مقادیر محرمانه فقط در Dashboard Render
+
+# فرانت: Vercel/Render جدا — NEXT_PUBLIC_API_URL = آدرس همین سرویس
+
+services:
+
+  - type: web
+
+    name: sanschii-api
+
+    runtime: node
+
+    rootDir: backend
+
+    buildCommand: npm ci
+
+    startCommand: npm start
+
+    healthCheckPath: /api/health
+
+    envVars:
+
+      - key: NODE_ENV
+
+        value: production
+
+      - key: MONGO_URI
+
+        sync: false
+
+      - key: JWT_SECRET
+
+        generateValue: true
+
+      - key: CORS_ORIGINS
+
+        sync: false
+
+      - key: BASE_URL
+
+        sync: false
+
+      - key: FRONTEND_URL
+
+        sync: false
+
+      - key: ZARINPAL_MERCHANT_ID
+
+        sync: false
+
+      - key: ZARINPAL_SANDBOX
+
+        value: "false"
+
+      - key: ALLOW_MOCK_PAY
+
+        value: "false"
+
+      - key: ALLOW_MOCK_REFUND
+
+        value: "false"
+
+      - key: ALLOW_OWNER_MANUAL_PAY
+
+        value: "false"
+
+      # تا خرید کاوه‌نگار: false + ورود با ایمیل/رمز
+
+      - key: SMS_ENABLED
+
+        value: "false"
+
+      - key: KAVENEGAR_API_KEY
+
+        sync: false
+
+      - key: KAVENEGAR_SENDER
+
+        sync: false
+

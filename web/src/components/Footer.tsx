@@ -17,8 +17,7 @@ export function Footer() {
         <div className="footer-main">
           <div className="footer-brand">
             <div className="footer-logo-row">
-              <span className="footer-logo-mark" aria-hidden />
-              <strong>سانس‌چی</strong>
+              <strong className="logo-wordmark">سانس‌چی</strong>
             </div>
             <p className="footer-tagline">
               پلتفرم رزرو آنلاین چمن فوتبال، سالن فوتسال و والیبال — سانس شفاف،
@@ -31,7 +30,7 @@ export function Footer() {
             </ul>
             <p className="footer-contact muted-sm">
               پشتیبانی:{' '}
-              <a href="mailto:support@sanschi.ir">support@sanschi.ir</a>
+              <a href="mailto:support@sanschii.ir">support@sanschii.ir</a>
               {' · '}
               <a href="tel:+982100000000">۰۲۱-۰۰۰۰۰۰۰۰</a>
             </p>
@@ -51,12 +50,14 @@ export function Footer() {
           <div className="footer-cta-block">
             <p className="footer-cta-title">آمادهٔ بازی هستی؟</p>
             <p className="footer-cta-text">همین الان سانس خالی را انتخاب و رزرو کن.</p>
-            <Button href="/reserve" variant="primary">
-              رزرو سانس
-            </Button>
-            <Button href="/penalty" variant="secondary">
-              ⚽ بازی پنالتی
-            </Button>
+            <div className="footer-cta-actions">
+              <Button href="/reserve" variant="primary" className="btn-sm">
+                رزرو سانس
+              </Button>
+              <Button href="/penalty" variant="secondary" className="btn-sm">
+                ⚽ پنالتی
+              </Button>
+            </div>
           </div>
         </div>
 

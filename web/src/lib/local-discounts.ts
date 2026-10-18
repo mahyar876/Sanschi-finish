@@ -1,4 +1,4 @@
-const STORE_KEY = 'sanschi_discounts';
+const STORE_KEY = 'sanschii_discounts';
 
 type LocalDiscount = {
   pct: number;

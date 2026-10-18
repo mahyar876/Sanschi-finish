@@ -7,6 +7,7 @@ import { pitchSizeLabel } from '@/lib/format';
 import { createPitch } from '@/lib/pitch-service';
 import { MapLocationPicker } from '@/components/map/MapLocationPicker';
 import { PitchImageUpload } from '@/components/form/PitchImageUpload';
+import { WomenBookingSelect } from '@/components/form/WomenBookingSelect';
 
 export function AdminNewPitchPage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export function AdminNewPitchPage() {
   const [image, setImage] = useState('');
   const [lat, setLat] = useState<number | undefined>();
   const [lng, setLng] = useState<number | undefined>();
+  const [womenBookingAllowed, setWomenBookingAllowed] = useState<boolean | null>(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -41,6 +43,7 @@ export function AdminNewPitchPage() {
         lng,
         isActive: true,
         commissionAmount: 45_000,
+        womenBookingAllowed,
       });
       setMsg('✓ زمین ثبت شد');
       router.push('/admin/pitches');
@@ -107,6 +110,10 @@ export function AdminNewPitchPage() {
             <label>توضیحات</label>
             <input value={desc} onChange={(e) => setDesc(e.target.value)} />
           </div>
+          <WomenBookingSelect
+            value={womenBookingAllowed}
+            onChange={setWomenBookingAllowed}
+          />
           <div className="field">
             <label>تگ‌ها</label>
             <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="سرپوشیده، پارکینگ" />

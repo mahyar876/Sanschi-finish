@@ -1,5 +1,6 @@
 import { VENUES } from '@/data/venues';
 import { loadDemoPitches } from '@/lib/demo-pitches';
+import type { Pitch } from '@/lib/pitch-types';
 import { getDemoReservations } from '@/lib/demo-reservations';
 
 export function getDemoAdminPitches() {
@@ -23,11 +24,9 @@ export function getDemoAdminReservations() {
   }));
 }
 
-export function getDemoOwnerPitches() {
-  return VENUES.slice(0, 3).map((v) => ({
-    _id: `demo-${v.id}`,
-    name: v.name,
-  }));
+export function getDemoOwnerPitches(): Pitch[] {
+  const ids = new Set(VENUES.slice(0, 3).map((v) => `demo-${v.id}`));
+  return loadDemoPitches().filter((p) => ids.has(p._id));
 }
 
 export function getDemoOwnerReservations() {

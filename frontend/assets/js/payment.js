@@ -93,7 +93,7 @@ function applyDiscount() {
   let found = false;
   let pct = 0;
   try {
-    const store = JSON.parse(localStorage.getItem('sanschi_discounts') || '{}');
+    const store = JSON.parse(localStorage.getItem('sanschii_discounts') || '{}');
     if (store[code] && !store[code].used && Date.now() < store[code].exp) {
       pct = store[code].pct;
       appliedDiscount = Math.round((orderData.amount * pct) / 100);
@@ -103,7 +103,7 @@ function applyDiscount() {
       appliedDiscount = Math.min(appliedDiscount, orderData.amount);
       found = true;
       store[code].used = true;
-      localStorage.setItem('sanschi_discounts', JSON.stringify(store));
+      localStorage.setItem('sanschii_discounts', JSON.stringify(store));
     }
   } catch (e) {}
 

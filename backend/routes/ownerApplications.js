@@ -7,6 +7,7 @@ const {
   rejectOwnerApplication,
   requestOwnerApplicationRevision,
 } = require('../services/ownerApplicationReview');
+const { normalizeSheba, isValidSheba } = require('../lib/sheba');
 
 const router = express.Router();
 
@@ -21,6 +22,9 @@ router.post('/', submitLimiter, async (req, res) => {
   try {
     const {
       contactName,
+      firstName,
+      lastName,
+      sheba,
       phone,
       email,
       venueName,
@@ -30,13 +34,39 @@ router.post('/', submitLimiter, async (req, res) => {
       tehranZone,
       basePrice,
       description,
+      womenBookingAllowed,
     } = req.body;
 
-    if (!contactName?.trim() || !venueName?.trim() || !address?.trim()) {
-      return res.status(400).json({ success: false, message: 'فیلدهای الزامی را پر کنید' });
+    const fn = String(firstName || contactName?.split(/\s+/)[0] || '').trim();
+    const ln = String(
+      lastName || contactName?.split(/\s+/).slice(1).join(' ') || '',
+    ).trim();
+    const fullName = String(contactName || `${fn} ${ln}`).trim();
+
+    if (!fn || !ln || fullName.length < 3 || !venueName?.trim() || !address?.trim()) {
+      return res.status(400).json({ success: false, message: 'نام، نام خانوادگی و مشخصات مجموعه الزامی است' });
     }
     if (!/^09[0-9]{9}$/.test(String(phone || ''))) {
       return res.status(400).json({ success: false, message: 'شماره موبایل معتبر نیست' });
+    }
+    if (!isValidSheba(sheba)) {
+      return res.status(400).json({
+        success: false,
+        message: 'شماره شبا معتبر نیست (IR + ۲۴ رقم)',
+      });
+    }
+
+    let womenAllowed = null;
+    if (womenBookingAllowed === true || womenBookingAllowed === 'true') womenAllowed = true;
+    else if (womenBookingAllowed === false || womenBookingAllowed === 'false') {
+      womenAllowed = false;
+    } else if (womenBookingAllowed === 'yes') womenAllowed = true;
+    else if (womenBookingAllowed === 'no') womenAllowed = false;
+    if (womenAllowed !== true && womenAllowed !== false) {
+      return res.status(400).json({
+        success: false,
+        message: 'مشخص کنید آیا رزرو برای بانوان در این زمین مجاز است یا خیر',
+      });
     }
 
     const pending = await OwnerApplication.findOne({ phone, status: 'pending' });
@@ -48,7 +78,10 @@ router.post('/', submitLimiter, async (req, res) => {
     }
 
     const payload = {
-      contactName: contactName.trim(),
+      contactName: fullName,
+      firstName: fn,
+      lastName: ln,
+      sheba: normalizeSheba(sheba),
       phone,
       email: email?.trim() || undefined,
       venueName: venueName.trim(),
@@ -58,6 +91,7 @@ router.post('/', submitLimiter, async (req, res) => {
       tehranZone: tehranZone || '',
       basePrice: Math.max(0, Number(basePrice) || 0),
       description: description?.trim() || '',
+      womenBookingAllowed: womenAllowed,
     };
 
     const needsFix = await OwnerApplication.findOne({ phone, status: 'needs_revision' }).sort({

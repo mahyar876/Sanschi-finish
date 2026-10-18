@@ -21,11 +21,24 @@ export async function apiFetch<T = unknown>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const timeoutMs = parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || '25000', 10) || 25_000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   let res: Response;
   try {
-    res = await fetch(apiUrl(path), { ...init, headers });
-  } catch {
+    res = await fetch(apiUrl(path), {
+      ...init,
+      headers,
+      signal: init.signal ?? controller.signal,
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new ApiError('پاسخ سرور طول کشید؛ دوباره تلاش کنید');
+    }
     throw new ApiError('اتصال به سرور برقرار نشد');
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const text = await res.text();

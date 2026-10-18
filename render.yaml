@@ -1,28 +1,63 @@
-# Render Blueprint — API Express (پلن رایگان)
-# https://dashboard.render.com/select-repo?type=blueprint
+# Blueprint Render — API + سایت Next.js از یک ریپو
+# Dashboard → New → Blueprint → ریپوی GitHub → MONGO_URI را یک بار وارد کنید
+
 services:
   - type: web
-    name: sanschi-api
+    name: sanschii-api
     runtime: node
-    plan: free
     rootDir: backend
-    buildCommand: npm install
+    plan: free
+    buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-      - key: JWT_SECRET
-        generateValue: true
       - key: MONGO_URI
         sync: false
+      - key: JWT_SECRET
+        generateValue: true
       - key: BASE_URL
-        sync: false
+        value: https://api.sanschii.ir
       - key: FRONTEND_URL
-        sync: false
-      - key: SMS_ENABLED
-        value: 'false'
-      - key: ALLOW_MOCK_PAY
-        value: 'true'
+        value: https://sanschii.ir
+      - key: CORS_ORIGINS
+        value: https://sanschii.ir,https://www.sanschii.ir,https://sanschii-web.onrender.com
       - key: ZARINPAL_SANDBOX
-        value: 'true'
+        value: "false"
+      - key: ALLOW_MOCK_PAY
+        value: "false"
+      - key: ALLOW_MOCK_REFUND
+        value: "false"
+      - key: ALLOW_OWNER_MANUAL_PAY
+        value: "false"
+      - key: SMS_ENABLED
+        value: "false"
+      - key: ZARINPAL_MERCHANT_ID
+        sync: false
+      - key: KAVENEGAR_API_KEY
+        sync: false
+      - key: KAVENEGAR_SENDER
+        sync: false
+
+  - type: web
+    name: sanschii-web
+    runtime: node
+    rootDir: web
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://sanschii.ir
+      - key: NEXT_PUBLIC_DEMO_MODE
+        value: "false"
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: sanschii-api
+          envVarKey: RENDER_EXTERNAL_URL

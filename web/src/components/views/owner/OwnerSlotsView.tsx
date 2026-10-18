@@ -8,7 +8,7 @@ import {
   PageIntro,
 } from '@/components/dashboard/DashboardPageBlocks';
 import type { Pitch, PitchSlot } from '@/lib/pitch-types';
-import { fetchPitch, updatePitch } from '@/lib/pitch-service';
+import { fetchPitchForOwner, updatePitch } from '@/lib/pitch-service';
 import { priceFa } from '@/lib/format';
 import { useOwnerPitches } from '@/lib/use-owner-pitches';
 
@@ -43,7 +43,13 @@ export function OwnerSlotsView() {
 
   const load = useCallback(() => {
     if (!pitchId) return;
-    void fetchPitch(pitchId).then((p) => {
+    void fetchPitchForOwner(pitchId).then((p) => {
+      if (!p) {
+        setPitch(null);
+        setMsg('زمین پیدا نشد — از لیست زمین‌ها دوباره انتخاب کنید.');
+        return;
+      }
+      setMsg('');
       setPitch(p);
       setBulkPrice(p.price || 550_000);
     });
@@ -106,19 +112,21 @@ export function OwnerSlotsView() {
         description="نمای روزانه، قیمت‌گذاری و مدیریت سریع وضعیت هر سانس."
       />
       {msg && <p className="notice">{msg}</p>}
-      {pitches.length > 0 && (
-        <ActionsPanel title="انتخاب مجموعه">
-          <div className="field" style={{ maxWidth: 360 }}>
-            <label>زمین</label>
-            <select value={pitchId} onChange={(e) => setPitchId(e.target.value)}>
-              {pitches.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </ActionsPanel>
+      {pitches.length > 1 && (
+        <div className="field owner-tools-field owner-slots-pitch-pick">
+          <label htmlFor="owner-slots-pitch">مجموعه</label>
+          <select
+            id="owner-slots-pitch"
+            value={pitchId}
+            onChange={(e) => setPitchId(e.target.value)}
+          >
+            {pitches.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
       {pitch && (
         <>

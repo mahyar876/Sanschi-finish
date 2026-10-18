@@ -1,4 +1,4 @@
-const KEY = 'sanschi_booking_pending';
+const KEY = 'sanschii_booking_pending';
 
 export type PendingBooking = {
   pitchId: string;

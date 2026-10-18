@@ -4,8 +4,15 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/fetch-api';
 import { getDemoOwnerPitches } from '@/lib/demo-dashboard';
 import { isDemoFrontend } from '@/lib/demo';
+import { getToken } from '@/lib/session';
+import type { Pitch } from '@/lib/pitch-types';
 
-export type OwnerPitchOption = { _id: string; name: string; commissionAmount?: number };
+/** دادهٔ کامل یا خلاصه — از `/owner/pitches` می‌آید */
+export type OwnerPitchOption = Pick<
+  Pitch,
+  '_id' | 'name' | 'commissionAmount' | 'address' | 'price' | 'tags' | 'isActive'
+> &
+  Partial<Pitch>;
 
 export function useOwnerPitches() {
   const [pitches, setPitches] = useState<OwnerPitchOption[]>([]);
@@ -13,10 +20,12 @@ export function useOwnerPitches() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isDemoFrontend()) {
+    const demoSession = isDemoFrontend() || getToken()?.startsWith('demo-token');
+
+    if (demoSession) {
       const list = getDemoOwnerPitches().map((p) => ({
         ...p,
-        commissionAmount: 45_000,
+        commissionAmount: p.commissionAmount ?? 45_000,
       }));
       setPitches(list);
       setPitchId(list[0]?._id || '');

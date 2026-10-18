@@ -1,10 +1,14 @@
+import type { VenueCategory } from '@/data/venues';
 import { fetchCatalog, type CatalogVenue } from '@/lib/catalog';
 import { DEFAULT_CATEGORY_IMAGE } from '@/lib/venue-images';
 import { tehranZoneLabel } from '@/lib/tehran-zones';
 import { loadDemoPitches } from '@/lib/demo-pitches';
 import { isDemoFrontend } from '@/lib/demo';
 import { apiFetch } from '@/lib/fetch-api';
-import { applyLastMinuteToSlot } from '@/lib/last-minute-pricing';
+import {
+  applyLastMinuteToSlot,
+  resolveLastMinuteSettings,
+} from '@/lib/last-minute-pricing';
 import { DEFAULT_SLOT_TIMES } from '@/lib/pitch-types';
 import { fetchPitch } from '@/lib/pitch-service';
 import { isSlotPastForBooking, jalaliApiDateFromDate } from '@/lib/slot-time';
@@ -15,6 +19,7 @@ export type FlashDeal = {
   slug: string;
   city: string;
   image: string;
+  category?: VenueCategory;
   date: string;
   slotIndex: number;
   time: string;
@@ -46,6 +51,7 @@ function demoFlashDeals(catalog: CatalogVenue[]): FlashDeal[] {
         slug: venue?.slug || p._id,
         city: venue ? tehranZoneLabel(venue.zone) : 'تهران',
         image: venue?.image || p.image || DEFAULT_CATEGORY_IMAGE.futsal,
+        category: venue?.category,
         date,
         slotIndex,
         time: s.time,
@@ -61,19 +67,115 @@ function demoFlashDeals(catalog: CatalogVenue[]): FlashDeal[] {
   return sortFlashDeals(deals);
 }
 
+/** وقتی الان سانس واقعی لحظه‌آخر نیست — برای نمایش صفحهٔ اصلی */
+function buildHomeFlashDealsFallback(
+  catalog: CatalogVenue[],
+  limit: number,
+): FlashDeal[] {
+  const date = jalaliApiDateFromDate(new Date());
+  const now = new Date();
+  const pitches = loadDemoPitches().filter((p) => p.isActive);
+  const out: FlashDeal[] = [];
+
+  for (const p of pitches) {
+    if (out.length >= limit) break;
+    const venue = catalog.find((v) => v.pitchId === p._id);
+    const commission = p.commissionAmount ?? 45_000;
+    let slotIndex = -1;
+    let slot: (typeof p.slots)[number] | undefined;
+    for (let i = 0; i < p.slots.length; i++) {
+      const s = p.slots[i];
+      if (s.taken) continue;
+      if (isSlotPastForBooking(date, s.time, now)) continue;
+      slot = s;
+      slotIndex = i;
+      break;
+    }
+    if (!slot || slotIndex < 0) continue;
+
+    const baseSite = slot.price + commission;
+    const settings = resolveLastMinuteSettings(p);
+    const discountPercent = Math.min(settings.discount60, settings.maxPct);
+    const sitePrice = Math.round(baseSite * (1 - discountPercent / 100));
+
+    out.push({
+      pitchId: p._id,
+      pitchName: p.name,
+      slug: venue?.slug || p._id,
+      city: venue ? tehranZoneLabel(venue.zone) : 'تهران',
+      image: venue?.image || p.image || DEFAULT_CATEGORY_IMAGE.futsal,
+      category: venue?.category,
+      date,
+      slotIndex,
+      time: slot.time,
+      sitePrice,
+      originalSitePrice: baseSite,
+      discountPercent,
+      urgency: '60m',
+      minutesUntil: 45,
+    });
+  }
+
+  for (const venue of catalog) {
+    if (out.length >= limit) break;
+    if (out.some((d) => d.pitchId === venue.pitchId)) continue;
+    const discountPercent = 15;
+    const base = venue.priceFrom;
+    out.push({
+      pitchId: venue.pitchId,
+      pitchName: venue.name,
+      slug: venue.slug,
+      city: tehranZoneLabel(venue.zone),
+      image: venue.image,
+      category: venue.category,
+      date,
+      slotIndex: 0,
+      time: 'امروز',
+      sitePrice: Math.round(base * (1 - discountPercent / 100)),
+      originalSitePrice: base,
+      discountPercent,
+      urgency: '60m',
+      minutesUntil: 45,
+    });
+  }
+
+  return out.slice(0, limit);
+}
+
 function sortFlashDeals(deals: FlashDeal[]): FlashDeal[] {
-  return [...deals].sort((a, b) => {
-    const ua = a.urgency === '30m' ? 0 : 1;
-    const ub = b.urgency === '30m' ? 0 : 1;
-    if (ua !== ub) return ua - ub;
-    return a.minutesUntil - b.minutesUntil;
+  return [...deals].sort((a, b) => a.minutesUntil - b.minutesUntil);
+}
+
+async function enrichDealsFromCatalog(
+  deals: Array<{
+    pitchId: string;
+    pitchName: string;
+    date: string;
+    slotIndex: number;
+    time: string;
+    sitePrice: number;
+    originalSitePrice: number;
+    discountPercent: number;
+    urgency: '30m' | '60m';
+    minutesUntil: number;
+  }>,
+  catalog: CatalogVenue[],
+): Promise<FlashDeal[]> {
+  return deals.map((d) => {
+    const venue = catalog.find((v) => v.pitchId === d.pitchId);
+    return {
+      ...d,
+      slug: venue?.slug || d.pitchId,
+      city: venue ? tehranZoneLabel(venue.zone) : 'تهران',
+      image: venue?.image || DEFAULT_CATEGORY_IMAGE.futsal,
+      category: venue?.category,
+    };
   });
 }
 
 export async function fetchFlashDeals(limit = 12): Promise<FlashDeal[]> {
-  const { items: catalog } = await fetchCatalog();
-
   if (isDemoFrontend()) {
+    const { items: catalog } = await fetchCatalog();
     return demoFlashDeals(catalog).slice(0, limit);
   }
 
@@ -94,22 +196,41 @@ export async function fetchFlashDeals(limit = 12): Promise<FlashDeal[]> {
       }>;
     }>(`/pitches/flash-deals?limit=${limit}`);
 
-    if (!data.success) return demoFlashDeals(catalog).slice(0, limit);
-
-    const enriched: FlashDeal[] = [];
-    for (const d of data.deals) {
-      const venue = catalog.find((v) => v.pitchId === d.pitchId);
-      enriched.push({
-        ...d,
-        slug: venue?.slug || d.pitchId,
-        city: venue ? tehranZoneLabel(venue.zone) : 'تهران',
-        image: venue?.image || DEFAULT_CATEGORY_IMAGE.futsal,
-      });
+    if (!data.success || !data.deals.length) {
+      const { items: catalog } = await fetchCatalog();
+      return demoFlashDeals(catalog).slice(0, limit);
     }
-    return enriched;
+
+    const { items: catalog } = await fetchCatalog();
+    return await enrichDealsFromCatalog(data.deals, catalog);
   } catch {
+    const { items: catalog } = await fetchCatalog();
     return demoFlashDeals(catalog).slice(0, limit);
   }
+}
+
+/** صفحهٔ اصلی — یک بار کاتالوگ + flash-deals (بدون درخواست تکراری) */
+export async function fetchHomeFlashDeals(limit = 4): Promise<FlashDeal[]> {
+  const catalogPromise = fetchCatalog();
+  if (isDemoFrontend()) {
+    const { items: catalog } = await catalogPromise;
+    return demoFlashDeals(catalog).slice(0, limit);
+  }
+  try {
+    const data = await apiFetch<{
+      success: boolean;
+      deals: Parameters<typeof enrichDealsFromCatalog>[0];
+    }>(`/pitches/flash-deals?limit=${limit}`);
+    if (data.success && data.deals.length) {
+      const { items: catalog } = await catalogPromise;
+      const enriched = await enrichDealsFromCatalog(data.deals, catalog);
+      return enriched.slice(0, limit);
+    }
+  } catch {
+    /* fallback */
+  }
+  const { items: catalog } = await catalogPromise;
+  return buildHomeFlashDealsFallback(catalog, limit);
 }
 
 /** سانس‌های دمو/API با زمان واقعی و تخفیف لحظه‌آخر */

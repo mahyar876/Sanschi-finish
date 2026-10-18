@@ -1,12 +1,8 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActionsPanel,
-  DataSection,
-  ListToolbar,
-  PageIntro,
-} from '@/components/dashboard/DashboardPageBlocks';
+import { DataSection, ListToolbar, PageIntro } from '@/components/dashboard/DashboardPageBlocks';
 import { apiFetch, ApiError } from '@/lib/fetch-api';
 import { getDemoOwnerReservations } from '@/lib/demo-dashboard';
 import { isDemoFrontend } from '@/lib/demo';
@@ -26,9 +22,10 @@ type Reservation = {
 };
 
 export function OwnerReservationsView() {
+  const searchParams = useSearchParams();
   const { pitches, pitchId, setPitchId } = useOwnerPitches();
   const [rows, setRows] = useState<Reservation[]>([]);
-  const [search, setSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid' | 'cancelled'>('all');
   const [codeLookup, setCodeLookup] = useState('');
   const [lookupResult, setLookupResult] = useState<Reservation | null>(null);
@@ -62,18 +59,25 @@ export function OwnerReservationsView() {
   }
 
   useEffect(() => {
+    const q = searchParams.get('pitch');
+    if (q && pitches.some((p) => p._id === q)) {
+      setPitchId(q);
+    }
+  }, [searchParams, pitches, setPitchId]);
+
+  useEffect(() => {
     load();
   }, [pitchId]);
 
   const filtered = useMemo(() => {
-    const q = search.trim();
+    const q = searchQuery.trim();
     return rows.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
       if (!q) return true;
       const hay = `${r.code} ${r.user?.name} ${r.user?.phone} ${r.date}`.toLowerCase();
       return hay.includes(q.toLowerCase());
     });
-  }, [rows, search, statusFilter]);
+  }, [rows, searchQuery, statusFilter]);
 
   async function checkIn(id: string) {
     setMsg('');
@@ -136,21 +140,42 @@ export function OwnerReservationsView() {
     <>
       <PageIntro
         title="رزروها"
-        description="جستجو با کد، ثبت ورود (QR/کد) و مدیریت رزرو."
+        description="لیست رزروهای مجموعه، جستجو و ثبت ورود با کد."
       />
-      <ActionsPanel title="جستجوی کد / QR">
-        <div className="hero-actions">
-          <input
-            placeholder="مثلاً SNS-ABC123"
-            value={codeLookup}
-            onChange={(e) => setCodeLookup(e.target.value.toUpperCase())}
-          />
-          <button type="button" className="btn btn-primary btn-sm" onClick={lookupByCode}>
-            بررسی
-          </button>
+
+      <section className="panel owner-tools-panel">
+        {pitches.length > 1 && (
+          <div className="field owner-tools-field">
+            <label htmlFor="owner-res-pitch">مجموعه</label>
+            <select
+              id="owner-res-pitch"
+              value={pitchId}
+              onChange={(e) => setPitchId(e.target.value)}
+            >
+              {pitches.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="field owner-tools-field">
+          <label htmlFor="owner-res-code">ورود با کد رزرو</label>
+          <div className="owner-inline-actions">
+            <input
+              id="owner-res-code"
+              placeholder="مثلاً SNS-ABC123"
+              value={codeLookup}
+              onChange={(e) => setCodeLookup(e.target.value.toUpperCase())}
+            />
+            <button type="button" className="btn btn-primary btn-sm" onClick={lookupByCode}>
+              بررسی
+            </button>
+          </div>
         </div>
         {lookupResult && (
-          <div className="panel" style={{ marginTop: '0.75rem' }}>
+          <div className="owner-lookup-result">
             <p>
               <strong>{lookupResult.code}</strong> · {lookupResult.date} · {lookupResult.slotTime}
             </p>
@@ -166,29 +191,18 @@ export function OwnerReservationsView() {
             </button>
           </div>
         )}
-      </ActionsPanel>
+      </section>
+
       {msg && <p className="notice">{msg}</p>}
-      {pitches.length > 0 && (
-        <ActionsPanel title="فیلتر مجموعه">
-          <div className="field" style={{ maxWidth: 320 }}>
-            <label>مجموعه</label>
-            <select value={pitchId} onChange={(e) => setPitchId(e.target.value)}>
-              {pitches.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </ActionsPanel>
-      )}
+
       <DataSection
         title="لیست رزرو"
         toolbar={
           <ListToolbar
-            searchPlaceholder="جستجو: کد، نام، تاریخ…"
-            searchValue={search}
-            onSearchChange={setSearch}
+            className="owner-filter-bar"
+            searchPlaceholder="جستجو در رزروها…"
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
             filters={
               <select
                 className="dash-filter-select"
@@ -205,8 +219,8 @@ export function OwnerReservationsView() {
           />
         }
       >
-        <div className="data-table-wrap">
-          <table className="data-table">
+        <div className="data-table-wrap owner-card-table-wrap">
+          <table className="data-table owner-card-table">
             <thead>
               <tr>
                 <th>کد</th>
@@ -221,28 +235,27 @@ export function OwnerReservationsView() {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="muted-sm">
+                  <td colSpan={7} className="owner-card-empty muted-sm">
                     رزروی یافت نشد.
                   </td>
                 </tr>
               )}
               {filtered.map((r) => (
                 <tr key={r._id}>
-                  <td>{r.code}</td>
-                  <td>
+                  <td data-label="کد">{r.code}</td>
+                  <td data-label="مشتری">
                     {r.user?.name}
-                    <br />
-                    <span className="muted-sm">{r.user?.phone}</span>
+                    <span className="muted-sm owner-card-sub">{r.user?.phone}</span>
                   </td>
-                  <td>{r.date}</td>
-                  <td>{r.slotTime}</td>
-                  <td>{priceFa(r.amount)}</td>
-                  <td>
+                  <td data-label="تاریخ">{r.date}</td>
+                  <td data-label="سانس">{r.slotTime}</td>
+                  <td data-label="مبلغ">{priceFa(r.amount)}</td>
+                  <td data-label="وضعیت">
                     <span className={`badge ${statusBadgeClass(r.bookingStatus || r.status)}`}>
                       {displayStatusFa(r.status, r.bookingStatus)}
                     </span>
                   </td>
-                  <td className="table-actions">
+                  <td className="table-actions" data-label="">
                     {(r.bookingStatus === 'confirmed' || r.status === 'paid') && (
                       <button
                         type="button"

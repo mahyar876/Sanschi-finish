@@ -14,11 +14,15 @@ import { addDemoPendingReservation } from '@/lib/demo-reservations';
 import { demoLoginAs, isDemoFrontend } from '@/lib/demo';
 import { getToken } from '@/lib/session';
 import { priceFa } from '@/lib/format';
+import { displaySlotTime } from '@/lib/slot-time';
+import { WomenBookingNotice } from '@/components/WomenBookingNotice';
+import type { WomenBookingAllowed } from '@/lib/women-booking';
 
 type PitchDetail = {
   name: string;
   address: string;
   desc?: string;
+  womenBookingAllowed?: WomenBookingAllowed;
 };
 
 export function ReserveConfirmView() {
@@ -63,7 +67,14 @@ export function ReserveConfirmView() {
     void apiFetch<{ success: boolean; pitch: PitchDetail & { commissionAmount?: number } }>(
       `/pitches/${merged.pitchId}`,
     ).then((data) => {
-      if (data.success) setPitch({ name: data.pitch.name, address: data.pitch.address, desc: data.pitch.desc });
+      if (data.success) {
+        setPitch({
+          name: data.pitch.name,
+          address: data.pitch.address,
+          desc: data.pitch.desc,
+          womenBookingAllowed: data.pitch.womenBookingAllowed ?? null,
+        });
+      }
     });
 
     void apiFetch<{ success: boolean; slots: { slotIndex: number; sitePrice?: number; price?: number; commission?: number }[] }>(
@@ -191,7 +202,9 @@ export function ReserveConfirmView() {
       <header className="page-hero">
         <p className="eyebrow">بررسی نهایی</p>
         <h1>تأیید جزئیات رزرو</h1>
-        <p className="subtitle">پس از تأیید، سانس به مدت ۱۰ دقیقه برای شما قفل می‌شود.</p>
+        <p className="subtitle">
+          با انتخاب سانس، تا ۱۰ دقیقه «در حال رزرو» نگه داشته می‌شود؛ پس از تأیید، رزرو ثبت می‌شود.
+        </p>
       </header>
 
       <div className="panel">
@@ -211,7 +224,7 @@ export function ReserveConfirmView() {
             </tr>
             <tr>
               <th>سانس</th>
-              <td>{pending?.slotTime}</td>
+              <td>{pending?.slotTime ? displaySlotTime(pending.slotTime) : '—'}</td>
             </tr>
             <tr>
               <th>مبلغ (تومان)</th>
@@ -219,6 +232,9 @@ export function ReserveConfirmView() {
             </tr>
           </tbody>
         </table>
+        {pitch ? (
+          <WomenBookingNotice allowed={pitch.womenBookingAllowed} />
+        ) : null}
         <p className="muted-sm" style={{ marginTop: '0.75rem' }}>
           کد تخفیف (مثلاً از بازی پنالتی) در مرحله پرداخت قابل اعمال است.
         </p>

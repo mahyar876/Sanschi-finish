@@ -10,8 +10,10 @@ import {
   type NavGroup,
 } from '@/lib/dashboard-nav';
 import { ownerRedirectFromPlayerPath } from '@/lib/account-home';
-import { apiFetch } from '@/lib/fetch-api';
+import { apiFetch, ApiError } from '@/lib/fetch-api';
 import { clearSession, getToken, getUser, setSession, type SessionUser } from '@/lib/session';
+import { demoLoginAs } from '@/lib/demo';
+import { isUiPreviewClient, previewRoleForPathname } from '@/lib/ui-preview';
 import { useEffect } from 'react';
 
 type Props = {
@@ -38,6 +40,15 @@ export function DashboardAppShell({
     let cancelled = false;
 
     async function syncUser() {
+      if (process.env.NODE_ENV !== 'production' && isUiPreviewClient()) {
+        const previewRole = previewRoleForPathname(pathname);
+        if (previewRole) {
+          demoLoginAs(previewRole);
+          setUser(getUser());
+          return;
+        }
+      }
+
       const token = getToken();
       const cached = getUser();
       if (!token || !cached) {
@@ -56,7 +67,12 @@ export function DashboardAppShell({
             u = { ...data.user, id: data.user.id };
             setSession(token, u);
           }
-        } catch {
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 401) {
+            clearSession();
+            router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+            return;
+          }
           /* offline — همان session محلی */
         }
       }
@@ -168,8 +184,11 @@ export function DashboardAppShell({
   const accountRoleLabel = panelRoleLabel(navRole);
   const panelBreadcrumb = panelRoleLabel(activePanelRole);
 
+  const ownerPanel =
+    requireRole === 'owner' || (requireRole === 'any' && activePanelRole === 'owner');
+
   return (
-    <div className="dash-app">
+    <div className={ownerPanel ? 'dash-app owner-dash' : 'dash-app'}>
       <button
         type="button"
         className={`dash-sidebar-backdrop${sidebarOpen ? ' open' : ''}`}
@@ -272,13 +291,6 @@ export function DashboardAppShell({
             <span aria-hidden>/</span>
             <span>{breadcrumbLabel(pathname)}</span>
           </div>
-          <input
-            type="search"
-            className="dash-top-search"
-            placeholder="جستجوی سراسری (به‌زودی)"
-            disabled
-            aria-label="جستجوی سراسری"
-          />
           <div className="dash-topbar-actions">
             <span className="dash-top-user">{user.name}</span>
             <Link href="/" className="btn btn-ghost btn-sm">

@@ -1,24 +1,19 @@
-import type { Metadata } from 'next';
-import { VENUES } from '@/data/venues';
-import { VenueDetailView } from '@/components/views/VenueDetailView';
+import { redirect } from 'next/navigation';
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
-export async function generateStaticParams() {
-  return VENUES.map((v) => ({ slug: v.slug }));
-}
-
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+/** مسیر قدیمی جزئیات مجموعه — مستقیم به رزرو */
+export default async function GalleryVenueRedirect({ params, searchParams }: Props) {
   const { slug } = await params;
-  const venue = VENUES.find((v) => v.slug === slug);
-  if (!venue) return { title: 'مجموعه' };
-  return {
-    title: venue.name,
-    description: venue.seoDescription,
-  };
-}
+  const sp = await searchParams;
+  const raw = sp.pitchId;
+  const pitchId =
+    typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
 
-export default async function VenueDetailPage({ params }: Props) {
-  const { slug } = await params;
-  return <VenueDetailView slug={slug} />;
+  const q = new URLSearchParams({ venue: slug });
+  if (pitchId) q.set('pitchId', pitchId);
+  redirect(`/reserve?${q.toString()}`);
 }

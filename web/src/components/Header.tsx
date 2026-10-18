@@ -9,6 +9,7 @@ import { getUser, type SessionUser } from '@/lib/session';
 const nav = [
   { href: '/', label: 'خانه' },
   { href: '/gallery', label: 'زمین‌ها' },
+  { href: '/assistant', label: 'دستیار' },
   { href: '/reserve', label: 'رزرو' },
   { href: '/penalty', label: 'پنالتی' },
   { href: '/about', label: 'درباره' },
@@ -42,10 +43,9 @@ export function Header() {
     <header className={isHome ? 'site-header site-header-home' : 'site-header'}>
       <div className="header-glow" aria-hidden />
       <div className="header-inner">
-        <Link href="/" className="logo">
-          <span className="logo-mark" aria-hidden />
+        <Link href="/" className="logo" aria-label="سانس‌چی — صفحهٔ اصلی">
           <span className="logo-text">
-            <span className="logo-name">سانس‌چی</span>
+            <span className="logo-wordmark">سانس‌چی</span>
             <span className="logo-tagline">رزرو آنلاین · چمن و سالن</span>
           </span>
         </Link>
@@ -87,9 +87,17 @@ export function Header() {
               حساب من
             </Link>
           ) : (
-            <Link href="/login" className="btn btn-ghost btn-sm">
-              ورود
-            </Link>
+            <div className="header-auth-links btn btn-ghost btn-sm">
+              <Link href="/login" className="header-auth-link">
+                ورود
+              </Link>
+              <span className="header-auth-sep" aria-hidden>
+                /
+              </span>
+              <Link href="/login?tab=register" className="header-auth-link">
+                ثبت‌نام
+              </Link>
+            </div>
           )}
           <Link href="/reserve" className="btn btn-primary btn-sm">
             رزرو سانس

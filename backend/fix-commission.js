@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Pitch = require('./models/Pitch');
 
 // آدرس دیتابیس خودتو اینجا بذار
-const MONGO_URI = process.env.MONGO_URI || 'http://localhost:5000/api';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sanschii';
 
 async function fix() {
   try {

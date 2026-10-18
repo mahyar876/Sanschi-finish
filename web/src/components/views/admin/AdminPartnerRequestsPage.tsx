@@ -17,6 +17,7 @@ import {
 } from '@/lib/owner-applications';
 import { TEHRAN_ZONE_LABEL, type TehranZone } from '@/lib/tehran-zones';
 import { pitchSizeLabel, priceFa } from '@/lib/format';
+import { womenBookingLabel } from '@/lib/women-booking';
 import { numFa, toJalaliString } from '@/lib/jalali';
 
 const VENUE_TYPE_LABEL = { futsal: 'سالن / فوتسال', grass: 'زمین چمن' } as const;
@@ -94,13 +95,25 @@ function ApplicationDetail({
         <DetailRow label="تاریخ ثبت">{formatWhen(app.createdAt)}</DetailRow>
         <DetailRow label="تاریخ بررسی">{formatWhen(app.reviewedAt)}</DetailRow>
 
-        <DetailRow label="نام تماس">{app.contactName}</DetailRow>
+        <DetailRow label="نام">{app.firstName || app.contactName.split(/\s+/)[0]}</DetailRow>
+        <DetailRow label="نام خانوادگی">
+          {app.lastName || app.contactName.split(/\s+/).slice(1).join(' ') || '—'}
+        </DetailRow>
         <DetailRow label="موبایل">
           <a href={`tel:${app.phone}`}>{numFa(app.phone)}</a>
         </DetailRow>
         <DetailRow label="ایمیل">
           {app.email ? (
             <a href={`mailto:${app.email}`}>{app.email}</a>
+          ) : (
+            <span className="muted-sm">ثبت نشده</span>
+          )}
+        </DetailRow>
+        <DetailRow label="شماره شبا">
+          {app.sheba ? (
+            <span dir="ltr" className="input-ltr">
+              {app.sheba}
+            </span>
           ) : (
             <span className="muted-sm">ثبت نشده</span>
           )}
@@ -113,6 +126,9 @@ function ApplicationDetail({
           <span className="partner-detail-multiline">{app.address}</span>
         </DetailRow>
         <DetailRow label="قیمت پایه هر سانس">{priceFa(app.basePrice)} تومان</DetailRow>
+        <DetailRow label="رزرو بانوان">
+          {womenBookingLabel(app.womenBookingAllowed)}
+        </DetailRow>
         <DetailRow label="توضیحات و امکانات">
           {app.description?.trim() ? (
             <span className="partner-detail-multiline">{app.description}</span>

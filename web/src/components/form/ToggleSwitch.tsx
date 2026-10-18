@@ -8,23 +8,23 @@ type Props = {
   description?: string;
 };
 
-export function ToggleSwitch({ id, checked, onChange, label, description }: Props) {
-  const inputId = id || `toggle-${label.slice(0, 8)}`;
+export function ToggleSwitch({ checked, onChange, label, description }: Props) {
   return (
-    <label className="toggle-row" htmlFor={inputId}>
+    <div className="toggle-row">
       <span className="toggle-row-text">
         <span className="toggle-row-label">{label}</span>
         {description ? <span className="toggle-row-desc">{description}</span> : null}
       </span>
-      <span className="toggle-switch">
-        <input
-          id={inputId}
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-        />
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        className={`toggle-switch-btn${checked ? ' is-on' : ''}`}
+        onClick={() => onChange(!checked)}
+      >
         <span className="toggle-slider" aria-hidden />
-      </span>
-    </label>
+        <span className="visually-hidden">{label}</span>
+      </button>
+    </div>
   );
 }

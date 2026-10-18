@@ -8,7 +8,7 @@
 async function sendSms(phone, text) {
   if (!phone || !text) return { sent: false };
   if (process.env.SMS_ENABLED !== 'true') {
-    console.log(`[SMS stub → ${phone}] ${text}`);
+    console.log(`[SMS stub → ${phone}] (${text.length} chars, content redacted)`);
     return { sent: false, stub: true };
   }
 

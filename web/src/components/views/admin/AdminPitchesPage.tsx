@@ -12,6 +12,9 @@ import { fetchAllPitches, removePitch, reorderPitch, updatePitch } from '@/lib/p
 import { pitchSizeLabel, priceFa } from '@/lib/format';
 import { MapLocationPicker } from '@/components/map/MapLocationPicker';
 import { PitchImageUpload } from '@/components/form/PitchImageUpload';
+import { WomenBookingSelect } from '@/components/form/WomenBookingSelect';
+import { AmenityChecklist } from '@/components/form/AmenityChecklist';
+import { normalizeAmenityIds, type PitchAmenityId } from '@/lib/pitch-amenities';
 
 const TYPE_LABEL = { futsal: 'فوتسال', grass: 'چمن' };
 
@@ -52,6 +55,10 @@ export function AdminPitchesPage() {
         lat: p.lat,
         lng: p.lng,
         sortOrder: p.sortOrder,
+        womenBookingAllowed: p.womenBookingAllowed ?? null,
+        rulesText: p.rulesText ?? '',
+        amenities: p.amenities ?? [],
+        maxCapacity: p.maxCapacity ?? null,
       });
       setMsg(`✓ «${p.name}» ذخیره شد`);
       load();
@@ -183,13 +190,32 @@ export function AdminPitchesPage() {
                 }
               />
               <div className="field">
-                <label>توضیحات</label>
+                <label>درباره مجموعه</label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={p.desc || ''}
                   onChange={(e) => patchLocal(p._id, { desc: e.target.value })}
                 />
               </div>
+              <div className="field">
+                <label>قوانین مجموعه</label>
+                <textarea
+                  rows={3}
+                  value={p.rulesText || ''}
+                  onChange={(e) => patchLocal(p._id, { rulesText: e.target.value })}
+                />
+              </div>
+              <AmenityChecklist
+                compact
+                value={normalizeAmenityIds(p.amenities)}
+                onChange={(amenities: PitchAmenityId[]) => patchLocal(p._id, { amenities })}
+              />
+              <WomenBookingSelect
+                value={p.womenBookingAllowed}
+                onChange={(womenBookingAllowed) =>
+                  patchLocal(p._id, { womenBookingAllowed })
+                }
+              />
               <div className="field">
                 <label>تگ‌ها (با ویرگول)</label>
                 <input

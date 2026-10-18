@@ -1,4 +1,4 @@
-# سانس‌یار — بک‌اند
+# سانس‌چی — بک‌اند
 
 **Node.js + Express + MongoDB**
 
@@ -22,7 +22,7 @@ cp .env.example .env
 ```
 فایل `.env` رو باز کن و مقادیر رو پر کن:
 ```
-MONGO_URI=mongodb://localhost:27017/sansyar
+MONGO_URI=mongodb://localhost:27017/sanschii
 JWT_SECRET=یه_کلید_طولانی_و_تصادفی
 PORT=5000
 NODE_ENV=development
@@ -41,7 +41,8 @@ npm start
 ```
 
 سرور روی `http://localhost:5000` بالا میاد.
-زمین‌ها به صورت خودکار seed میشن.
+
+**Seed (یک بار):** `npm run seed` — زمین‌های نمونه در دیتابیس ساخته می‌شوند (با بالا آمدن سرور خودکار نیست).
 
 ---
 
@@ -68,6 +69,14 @@ npm start
 | POST | `/api/pitches` | اضافه کردن زمین 🔒👑 |
 | PATCH | `/api/pitches/:id` | ویرایش زمین 🔒👑 |
 | DELETE | `/api/pitches/:id` | غیرفعال کردن 🔒👑 |
+| PATCH | `/api/pitches/:id/reorder` | جابجایی ترتیب نمایش 🔒👑 |
+
+### Wallet / Settings / Assistant
+| Method | URL | توضیح |
+|--------|-----|--------|
+| GET | `/api/wallet/me` | موجودی کیف پول 🔒 |
+| GET/PATCH | `/api/settings/site` | تنظیمات عمومی سایت |
+| POST | `/api/assistant/chat` | دستیار رزرو |
 
 ### Reservations
 | Method | URL | توضیح |
@@ -114,20 +123,8 @@ curl -X POST http://localhost:5000/api/reservations \
 
 ---
 
-## اتصال فرانت‌اند به بک‌اند
+## فرانت Next.js
 
-در فایل‌های HTML، توابع API call رو اضافه کن. مثلاً در `login.html`:
+اپ اصلی در `web/` است. در حالت dev، Next درخواست‌های `/api/*` را به `http://localhost:5000` پروکسی می‌کند.
 
-```javascript
-// جایگزین کن sendToken مصنوعی رو با این:
-const res = await fetch('http://localhost:5000/api/auth/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ email, password })
-});
-const data = await res.json();
-if (data.success) {
-  sessionStorage.setItem('sns_token', data.token);
-  sessionStorage.setItem('sns_user', JSON.stringify(data.user));
-}
-```
+**آزمون امنیت:** `npm run security:smoke` (سرور باید روشن باشد)

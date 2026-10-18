@@ -1,77 +1,159 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { PageIntro, StatGrid, StatCard } from '@/components/dashboard/DashboardPageBlocks';
-import { fetchPitch } from '@/lib/pitch-service';
-import { getDemoOwnerPitches } from '@/lib/demo-dashboard';
-import { isDemoFrontend } from '@/lib/demo';
-import type { Pitch } from '@/lib/pitch-types';
-import { priceFa } from '@/lib/format';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState, type KeyboardEvent } from 'react';
+import { PageIntro } from '@/components/dashboard/DashboardPageBlocks';
+import { OwnerQuickSheet } from '@/components/owner/OwnerQuickSheet';
+import { OwnerPitchEditor } from '@/components/views/owner/OwnerPitchEditor';
+import { ClientPortal } from '@/components/ui/ClientPortal';
+import type { OwnerPitchOption } from '@/lib/use-owner-pitches';
 import { useOwnerPitches } from '@/lib/use-owner-pitches';
 
-export function OwnerPitchesView() {
-  const { pitches } = useOwnerPitches();
-  const [details, setDetails] = useState<Pitch[]>([]);
+function OwnerPitchesContent() {
+  const { pitches, loading } = useOwnerPitches();
+  const router = useRouter();
+  const search = useSearchParams();
+  const [sheetPitch, setSheetPitch] = useState<OwnerPitchOption | null>(null);
+  const [editPitchId, setEditPitchId] = useState<string | null>(null);
+
+  const editPitch = editPitchId
+    ? pitches.find((p) => p._id === editPitchId) ?? null
+    : null;
 
   useEffect(() => {
-    const ids = pitches.map((p) => p._id);
-    if (!ids.length) {
-      setDetails([]);
-      return;
+    const edit = search.get('edit');
+    if (edit && pitches.some((p) => p._id === edit)) {
+      setEditPitchId(edit);
     }
-    if (isDemoFrontend()) {
-      void Promise.all(ids.map((id) => fetchPitch(id))).then(setDetails).catch(() => setDetails([]));
-      return;
-    }
-    void Promise.all(ids.map((id) => fetchPitch(id)))
-      .then(setDetails)
-      .catch(() => {
-        void Promise.all(getDemoOwnerPitches().map((p) => fetchPitch(p._id))).then(setDetails);
-      });
-  }, [pitches]);
+  }, [search, pitches]);
 
-  const active = details.filter((p) => p.isActive).length;
+  useEffect(() => {
+    const open = Boolean(editPitchId || sheetPitch);
+    document.body.classList.toggle('owner-overlay-open', open);
+    return () => {
+      document.body.classList.remove('owner-overlay-open');
+    };
+  }, [editPitchId, sheetPitch]);
+
+  function openEdit(pitch: OwnerPitchOption) {
+    setSheetPitch(null);
+    setEditPitchId(pitch._id);
+    router.replace(`/owner/pitches?edit=${pitch._id}`, { scroll: false });
+  }
+
+  function closeEdit() {
+    setEditPitchId(null);
+    router.replace('/owner/pitches', { scroll: false });
+  }
+
+  function openSheet(pitch: OwnerPitchOption) {
+    setSheetPitch(pitch);
+  }
+
+  function onRowKeyDown(e: KeyboardEvent, pitch: OwnerPitchOption) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openSheet(pitch);
+    }
+  }
 
   return (
     <>
       <PageIntro
-        title="مدیریت زمین‌های من"
-        description="برای آپلود عکس و ثبت موقعیت روی نقشه، «ویرایش» را بزنید."
+        title="زمین‌های من"
+        description={
+          loading
+            ? '…'
+            : pitches.length
+              ? `${pitches.length} مجموعه — برای مدیریت لمس کنید`
+              : 'هنوز مجموعه‌ای به حساب شما وصل نشده'
+        }
       />
-      <StatGrid>
-        <StatCard label="تعداد زمین" value={details.length || pitches.length} />
-        <StatCard label="فعال" value={active} hint={`${details.length - active} غیرفعال`} />
-      </StatGrid>
-      <div className="pitch-admin-grid">
-        {details.map((p) => (
-          <article key={p._id} className="pitch-admin-card panel">
-            <div className="pitch-admin-card-top">
-              <div>
-                <h3 className="dash-section-title">{p.name}</h3>
-                <p className="muted-sm">{p.address || '—'}</p>
-              </div>
-              <span className={`badge ${p.isActive ? 'paid' : 'cancelled'}`}>
-                {p.isActive ? 'فعال' : 'غیرفعال'}
-              </span>
-            </div>
-            <p className="muted-sm">
-              قیمت پایه: {priceFa(p.price)} · {p.tags?.length ? p.tags.join('، ') : 'بدون برچسب'}
-            </p>
-            <div className="pitch-admin-actions">
-              <Link href={`/owner/pitch?pitch=${p._id}`} className="btn btn-primary btn-sm">
-                ویرایش
-              </Link>
-              <Link href={`/owner/slots?pitch=${p._id}`} className="btn btn-secondary btn-sm">
-                سانس‌ها
-              </Link>
-            </div>
-          </article>
+
+      <div className="owner-pitch-list" aria-busy={loading}>
+        {pitches.map((p) => (
+          <div
+            key={p._id}
+            className="owner-pitch-row"
+            role="button"
+            tabIndex={0}
+            onClick={() => openSheet(p)}
+            onKeyDown={(e) => onRowKeyDown(e, p)}
+          >
+            <span className="owner-pitch-row-name">{p.name}</span>
+            <span
+              className={`badge owner-pitch-row-badge ${p.isActive !== false ? 'paid' : 'cancelled'}`}
+            >
+              {p.isActive !== false ? 'فعال' : 'غیرفعال'}
+            </span>
+            <span className="owner-pitch-row-chevron" aria-hidden>
+              ◂
+            </span>
+          </div>
         ))}
-        {details.length === 0 && pitches.length === 0 && (
-          <p className="notice">مجموعه‌ای یافت نشد.</p>
-        )}
       </div>
+
+      {!loading && pitches.length === 0 && (
+        <p className="notice">با پشتیبانی تماس بگیرید تا مجموعه به حساب شما وصل شود.</p>
+      )}
+
+      <OwnerQuickSheet
+        open={Boolean(sheetPitch)}
+        title={sheetPitch?.name ?? ''}
+        subtitle={sheetPitch?.address}
+        onClose={() => setSheetPitch(null)}
+      >
+        <button
+          type="button"
+          className="btn btn-primary owner-quick-action"
+          onClick={() => sheetPitch && openEdit(sheetPitch)}
+        >
+          ویرایش اطلاعات، عکس و نقشه
+        </button>
+        {sheetPitch && (
+          <Link
+            href={`/owner/slots?pitch=${sheetPitch._id}`}
+            className="btn btn-secondary owner-quick-action"
+            onClick={() => setSheetPitch(null)}
+          >
+            مدیریت سانس‌ها
+          </Link>
+        )}
+        {sheetPitch && (
+          <Link
+            href={`/owner/reservations?pitch=${sheetPitch._id}`}
+            className="btn btn-ghost owner-quick-action"
+            onClick={() => setSheetPitch(null)}
+          >
+            رزروهای این مجموعه
+          </Link>
+        )}
+      </OwnerQuickSheet>
+
+      {editPitchId && (
+        <ClientPortal>
+          <div className="owner-form-drawer" role="dialog" aria-modal="true">
+            <header className="owner-form-drawer-head">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={closeEdit}>
+                ← بازگشت
+              </button>
+              <h2 className="owner-form-drawer-title">{editPitch?.name ?? 'ویرایش'}</h2>
+            </header>
+            <div className="owner-form-drawer-body">
+              <OwnerPitchEditor pitchId={editPitchId} />
+            </div>
+          </div>
+        </ClientPortal>
+      )}
     </>
+  );
+}
+
+export function OwnerPitchesView() {
+  return (
+    <Suspense fallback={<p className="muted-sm">در حال بارگذاری…</p>}>
+      <OwnerPitchesContent />
+    </Suspense>
   );
 }

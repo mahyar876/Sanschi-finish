@@ -60,19 +60,22 @@ router.patch('/pitches/:id', protect, loadOwnedPitch, async (req, res) => {
       'price',
       'address',
       'desc',
+      'rulesText',
+      'amenities',
+      'maxCapacity',
       'tags',
       'color1',
       'color2',
       'image',
       'isActive',
       'slots',
-      'commissionAmount',
       'lat',
       'lng',
       'lastMinuteEnabled',
       'lastMinuteDiscount60',
       'lastMinuteDiscount30',
       'lastMinuteMaxPct',
+      'womenBookingAllowed',
     ];
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) req.pitch[key] = req.body[key];
@@ -151,6 +154,18 @@ router.patch('/reservations/:id/status', protect, async (req, res) => {
         .json({ success: false, message: 'این رزرو به زمین شما تعلق ندارد' });
     }
 
+    if (
+      status === 'paid' &&
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_OWNER_MANUAL_PAY !== 'true'
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          'تأیید دستی پرداخت توسط مالک در محیط واقعی غیرفعال است. از درگاه یا پنل پشتیبانی استفاده کنید.',
+      });
+    }
+
     if (status === 'cancelled') {
       if (reservation.status === 'cancelled') {
         return res
@@ -194,21 +209,14 @@ router.patch('/reservations/:id/status', protect, async (req, res) => {
         setImmediate(() => tryAutoRefund(reservation._id));
       }
     } else if (status === 'paid') {
-      reservation.status = 'paid';
-      reservation.payment = reservation.payment || {};
-      if (!reservation.payment.transactionId) {
-        reservation.payment.transactionId = 'OWNER-CONFIRM-' + Date.now();
-      }
-      if (!reservation.payment.paidAt) {
-        reservation.payment.paidAt = new Date();
-      }
-      // snapshot کمیسیون ثابت زمین در لحظه‌ی تأیید پرداخت (اگر قبلاً ثبت نشده)
-      // تا تسویه‌ی مالی این رزرو هم درست محاسبه شود.
-      if (reservation.siteCommission == null) {
-        const commission = pitch.commissionAmount || 0;
-        reservation.siteCommission = commission;
-        reservation.pitchAmount = Math.max(0, reservation.amount - commission);
-      }
+      const { confirmReservationPayment } = require('../services/paymentConfirm');
+      const ref = 'OWNER-' + Date.now();
+      const { reservation: confirmed } = await confirmReservationPayment(
+        reservation,
+        ref,
+        'owner_manual',
+      );
+      return res.json({ success: true, reservation: confirmed });
     }
 
     await reservation.save();

@@ -123,18 +123,17 @@
 }
 
 .ball {
-  width: 30px;
-  height: 30px;
-  background:
-    radial-gradient(circle at 30% 28%, #fff 0%, #eee 18%, transparent 19%),
-    radial-gradient(circle at 68% 35%, #222 0%, #222 12%, transparent 13%),
-    radial-gradient(circle at 42% 68%, #222 0%, #222 11%, transparent 12%),
-    radial-gradient(circle at 72% 72%, #222 0%, #222 10%, transparent 11%),
-    radial-gradient(circle at 22% 55%, #222 0%, #222 9%, transparent 10%),
-    linear-gradient(145deg, #fafafa, #bdbdbd 55%, #8a8a8a);
+  width: 32px;
+  height: 32px;
+  background-color: #f3f4f6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='s' cx='35%25' cy='30%25' r='65%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='55%25' stop-color='%23e5e7eb'/%3E%3Cstop offset='100%25' stop-color='%23b8bcc4'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='31' fill='url(%23s)'/%3E%3Cpath fill='%23111827' d='M32 6l8.2 6.8L42 22l-10 3.2L22 22l1.8-9.2L32 6z'/%3E%3Cpath fill='%23111827' d='M14 26l7.5 5.5-1 9.5-8.8 3.5-7.5-5.5 1.8-9.2L14 26z'/%3E%3Cpath fill='%23111827' d='M50 26l7.5 5.5-1.8 9.2-7.5 5.5L40 41l1-9.5L50 26z'/%3E%3Cpath fill='%23111827' d='M20 48l6.5-4.5L32 48l5.5-4.5L44 48l-2 10H22l-2-10z'/%3E%3Cpath fill='%23111827' d='M32 28l6 4.5-1.2 7.5L32 42l-4.8-2-1.2-7.5L32 28z'/%3E%3Ccircle cx='32' cy='32' r='31' fill='none' stroke='rgba(0,0,0,0.12)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
   box-shadow:
-    0 4px 14px rgba(0, 0, 0, 0.55),
-    inset -2px -3px 6px rgba(0, 0, 0, 0.25);
+    0 5px 16px rgba(0, 0, 0, 0.5),
+    inset 0 2px 4px rgba(255, 255, 255, 0.55),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.18);
 }
 
 .ball.flight {

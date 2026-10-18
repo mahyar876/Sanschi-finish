@@ -16,7 +16,7 @@ export type PenaltyConfig = {
   updatedAt?: string;
 };
 
-export const PENALTY_CONFIG_STORAGE_KEY = 'sanschi_penalty_config';
+export const PENALTY_CONFIG_STORAGE_KEY = 'sanschii_penalty_config';
 
 export const DEFAULT_PENALTY_CONFIG: PenaltyConfig = {
   easy: { discountPercent: 5, discountFixedCap: 700_000, minGoals: 5 },

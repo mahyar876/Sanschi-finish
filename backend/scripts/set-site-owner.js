@@ -5,7 +5,7 @@ const User = require('../models/User');
 
 const SITE_OWNER_PHONE = '09337752754';
 const OTHER_PHONE = '09057752714';
-const ADMIN_EMAIL = 'admin@sansyar.ir';
+const ADMIN_EMAIL = 'admin@sanschii.ir';
 
 async function run() {
   await mongoose.connect(process.env.MONGO_URI);

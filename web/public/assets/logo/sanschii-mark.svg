@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <filter id="sanschiiGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer badge -->
+  <circle cx="32" cy="32" r="28" fill="rgba(38,179,106,0.10)" stroke="#26b36a" stroke-width="3" filter="url(#sanschiiGlow)" />
+
+  <!-- Football -->
+  <circle cx="32" cy="31" r="14" fill="none" stroke="#2ec476" stroke-width="2" />
+  <path
+    d="M18.5 31H45.5"
+    fill="none"
+    stroke="#2ec476"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M32 17V45"
+    fill="none"
+    stroke="#2ec476"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M22.5 25.5 L32 31 L41.5 25.5"
+    fill="none"
+    stroke="#2ec476"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M22.5 36.5 L32 31 L41.5 36.5"
+    fill="none"
+    stroke="#2ec476"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+
+  <!-- Pitch hint -->
+  <path
+    d="M14 42
+       C20 39, 24 38, 32 38
+       C40 38, 44 39, 50 42"
+    fill="none"
+    stroke="rgba(38,179,106,0.35)"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M32 38 V48"
+    fill="none"
+    stroke="rgba(38,179,106,0.25)"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+</svg>
+

@@ -55,11 +55,11 @@ const reservationSchema = new mongoose.Schema({
   checkedInAt: { type: Date, default: null },
   completedAt: { type: Date, default: null },
 
-  // ── کمیسیون سانس‌یار (snapshot لحظه‌ی تأیید پرداخت) ──
+  // ── کمیسیون سانس‌چی (snapshot لحظه‌ی تأیید پرداخت) ──
   // این دو فیلد فقط وقتی status به paid تغییر می‌کند پر می‌شوند و با
   // commissionAmount فعلیِ زمین (در آن لحظه) محاسبه می‌شوند. تغییر بعدیِ
   // کمیسیون زمین، رزروهای قبلاً پرداخت‌شده را تغییر نمی‌دهد.
-  // siteCommission = سهم ثابت سانس‌یار (تومان) — در صورت لغو هم باقی می‌ماند
+  // siteCommission = سهم ثابت سانس‌چی (تومان) — در صورت لغو هم باقی می‌ماند
   //   و غیرقابل‌برگشت است.
   // pitchAmount    = amount - siteCommission = سهم صاحب زمین، تنها مبلغی
   //   که در صورت لغو رزرو پرداخت‌شده باید به مشتری برگردانده شود.
@@ -104,6 +104,7 @@ const reservationSchema = new mongoose.Schema({
     // gatewayAmount: مبلغ دقیقی که به درگاه ارسال شد (برای verify لازم است).
     authority: { type: String, default: null, index: true },
     gatewayAmount: { type: Number, default: null },
+    walletAmount: { type: Number, default: null },
     refundId: { type: String, default: null },
   },
 
@@ -113,5 +114,22 @@ const reservationSchema = new mongoose.Schema({
   isArchived: { type: Boolean, default: false },
   archivedAt: { type: Date, default: null },
 });
+
+const ACTIVE_SLOT_BOOKING_STATUSES = [
+  'pending_payment',
+  'confirmed',
+  'checked_in',
+  'refund_pending',
+];
+
+reservationSchema.index(
+  { pitch: 1, date: 1, slotIndex: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      bookingStatus: { $in: ACTIVE_SLOT_BOOKING_STATUSES },
+    },
+  },
+);
 
 module.exports = mongoose.model('Reservation', reservationSchema);

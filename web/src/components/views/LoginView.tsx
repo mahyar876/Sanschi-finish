@@ -1,13 +1,14 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '@/lib/fetch-api';
 import {
   DEMO_OTP,
   demoLoginAs,
   demoRegisterUser,
   isDemoFrontend,
+  showDevQuickLogin,
   SITE_OWNER_PHONE,
 } from '@/lib/demo';
 import { pathAfterAuth } from '@/lib/account-home';
@@ -20,8 +21,16 @@ export function LoginView() {
   const router = useRouter();
   const search = useSearchParams();
   const redirectParam = search.get('redirect');
+  const tabParam = search.get('tab');
 
-  const [tab, setTab] = useState<Tab>('login');
+  const [tab, setTab] = useState<Tab>(() =>
+    tabParam === 'register' ? 'register' : 'login',
+  );
+
+  useEffect(() => {
+    if (tabParam === 'register') setTab('register');
+    else if (tabParam === 'login') setTab('login');
+  }, [tabParam]);
   const [method, setMethod] = useState<'phone' | 'email'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -49,14 +58,16 @@ export function LoginView() {
     }
     setLoading(true);
     try {
-      const data = await apiFetch<{ success: boolean; message?: string; dev_otp?: string }>(
+      const data = await apiFetch<{ success: boolean; message?: string }>(
         '/auth/send-otp',
         { method: 'POST', body: JSON.stringify({ phone }) },
       );
       if (!data.success) throw new Error(data.message);
       setOtpSent(true);
-      if (data.dev_otp) {
-        setOtpDevHint(`کد ورود (تا فعال شدن پیامک): ${numFa(Number(data.dev_otp))}`);
+      if (process.env.NODE_ENV !== 'production') {
+        setOtpDevHint(
+          'در حالت توسعه، کد ۶ رقمی در لاگ سرور چاپ می‌شود (یا با SMS_ENABLED=true از پیامک).',
+        );
       }
     } catch (e) {
       if (isDemoFrontend()) {
@@ -234,7 +245,7 @@ export function LoginView() {
                 </div>
                 {otpSent && (
                   <div className="field">
-                    <label htmlFor="otp">کد تأیید ({numFa(4)} رقم)</label>
+                    <label htmlFor="otp">کد تأیید ({numFa(6)} رقم)</label>
                     <input id="otp" value={otp} onChange={(e) => setOtp(e.target.value)} />
                     {otpDevHint ? (
                       <p className="form-msg" style={{ color: 'var(--accent)' }}>
@@ -341,9 +352,13 @@ export function LoginView() {
 
         {err && <p className="form-msg err">{err}</p>}
 
-        {isDemoFrontend() && (
+        {showDevQuickLogin() && (
           <div className="demo-quick-login">
-            <p>ورود سریع (بدون سرور)</p>
+            <p>
+              {isDemoFrontend()
+                ? 'ورود سریع (بدون سرور)'
+                : 'ورود سریع نمایشی (لوکال — برای باز کردن چند پنل: /dev/panels)'}
+            </p>
             <div className="hero-actions">
               <button
                 type="button"
@@ -357,14 +372,14 @@ export function LoginView() {
                 className="btn btn-ghost btn-sm"
                 onClick={() => quickDemo('admin')}
               >
-                ورود مالک
+                ورود ادمین
               </button>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
                 onClick={() => quickDemo('owner')}
               >
-                ورود صاحب زمین
+                ورود مالک زمین
               </button>
             </div>
           </div>

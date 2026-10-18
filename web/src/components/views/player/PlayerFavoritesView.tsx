@@ -21,14 +21,13 @@ export function PlayerFavoritesView() {
     <>
       <PageIntro
         title="علاقه‌مندی‌ها"
-        description="مجموعه‌هایی که با ستاره در صفحه جزئیات ذخیره کرده‌اید."
+        description="مجموعه‌هایی که به علاقه‌مندی‌ها اضافه کرده‌اید."
       />
       <DataSection title="لیست">
         {venues.length === 0 ? (
           <p className="subtitle" style={{ margin: 0 }}>
-            موردی نیست. از{' '}
-            <Link href="/gallery">گالری زمین‌ها</Link> وارد صفحه هر مجموعه شوید
-            و «افزودن به علاقه‌مندی» را بزنید.
+            موردی نیست. از <Link href="/gallery">گالری زمین‌ها</Link> مجموعه را
+            انتخاب کنید و رزرو کنید.
           </p>
         ) : (
           <div className="venue-grid">

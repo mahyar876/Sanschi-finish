@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const { protect, signToken } = require('../middleware/authController');
+const { issueOtp, verifyOtp } = require('../lib/otpStore');
+const { sendSms } = require('../services/sms');
 
 // ── پاسخ با توکن ──
 function sendToken(res, user, statusCode = 200) {
@@ -19,12 +21,20 @@ function sendToken(res, user, statusCode = 200) {
   });
 }
 
+const isProd = process.env.NODE_ENV === 'production';
+
+function clientErrorMessage(err, fallback = 'خطای سرور') {
+  if (isProd) return fallback;
+  return err?.message || fallback;
+}
+
 // ─────────────────────────────────────
 // POST /api/auth/register
 // ─────────────────────────────────────
 router.post('/register', async (req, res) => {
-  console.log('📥 REGISTER STARTED');
-  console.log('Request body:', req.body);
+  if (!isProd) {
+    console.log('📥 REGISTER STARTED');
+  }
 
   try {
     const { name, phone, email, password } = req.body;
@@ -39,10 +49,12 @@ router.post('/register', async (req, res) => {
     const emailValue =
       email && email.trim() !== '' ? email.trim().toLowerCase() : undefined;
 
-    const payload = { name, phone, password };
-    if (emailValue) payload.email = emailValue;
-
-    const user = await User.create(payload);
+    const user = await User.create({
+      name: String(name || '').trim(),
+      phone: String(phone || '').trim(),
+      ...(emailValue ? { email: emailValue } : {}),
+      ...(password ? { password } : {}),
+    });
 
     const { linkApprovedApplicationsForPhone } = require('../services/ownerApplicationReview');
     await linkApprovedApplicationsForPhone(phone);
@@ -52,7 +64,13 @@ router.post('/register', async (req, res) => {
     sendToken(res, refreshed || user, 201);
   } catch (err) {
     console.error('❌ REGISTER ERROR:', err.message);
-    res.status(500).json({ success: false, message: err.message });
+    if (err.name === 'ValidationError') {
+      const msg = Object.values(err.errors)
+        .map((e) => e.message)
+        .join(' | ');
+      return res.status(400).json({ success: false, message: msg });
+    }
+    res.status(500).json({ success: false, message: clientErrorMessage(err) });
   }
 });
 
@@ -62,7 +80,6 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log('🔐 LOGIN attempt:', email);
 
     if (!email || !password) {
       return res
@@ -70,23 +87,17 @@ router.post('/login', async (req, res) => {
         .json({ success: false, message: 'ایمیل و رمز عبور الزامی است' });
     }
 
-    const user = await User.findOne({ email }).select('+password');
-    console.log(
-      '👤 User found:',
-      !!user,
-      '| has password:',
-      !!(user && user.password),
+    const user = await User.findOne({ email: String(email).trim().toLowerCase() }).select(
+      '+password',
     );
 
     if (!user || !user.password) {
-      console.log('❌ user not found or no password');
       return res
         .status(401)
         .json({ success: false, message: 'اطلاعات اشتباه است' });
     }
 
     const ok = await user.comparePassword(password);
-    console.log('🔑 password match:', ok, '| role:', user.role);
 
     if (!ok) {
       return res
@@ -94,7 +105,6 @@ router.post('/login', async (req, res) => {
         .json({ success: false, message: 'اطلاعات اشتباه است' });
     }
 
-    console.log('✅ LOGIN success:', email);
     sendToken(res, user);
   } catch (err) {
     console.error('❌ LOGIN ERROR:', err.message);
@@ -106,42 +116,55 @@ router.post('/login', async (req, res) => {
 // POST /api/auth/send-otp
 // OTP فقط تو console چاپ میشه — لوکال دستی وارد کن
 // ─────────────────────────────────────
-const otpStore = new Map();
-
 router.post('/send-otp', async (req, res) => {
+  const uniformOk = {
+    success: true,
+    message: 'در صورت ثبت بودن شماره، کد ارسال می‌شود',
+  };
   try {
-    const { phone } = req.body;
+    const phone = String(req.body?.phone || '').trim();
     if (!/^09[0-9]{9}$/.test(phone)) {
       return res
         .status(400)
         .json({ success: false, message: 'شماره معتبر نیست' });
     }
 
-    // چک کن کاربر قبلاً ثبت‌نام کرده یا نه
-    const userExists = await User.findOne({ phone });
+    const userExists = await User.findOne({ phone }).select('_id');
     if (!userExists) {
-      return res.status(404).json({
+      if (!isProd) {
+        console.log(
+          `[OTP dev] ${phone} در دیتابیس ثبت نیست — کد صادر نشد (پاسخ API مثل حالت موفق است).`,
+        );
+      }
+      return res.json(uniformOk);
+    }
+
+    const issued = await issueOtp(phone);
+    if (!issued.ok) {
+      return res.status(issued.code).json({
         success: false,
-        message: 'این شماره ثبت‌نام نشده — ابتدا ثبت‌نام کن',
+        message: issued.message,
       });
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    otpStore.set(phone, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+    const { otp } = issued;
+    const smsText = `کد ورود سانس‌چی: ${otp}\nاین کد تا چند دقیقه معتبر است.`;
 
-    console.log('');
-    console.log('┌──────────────────────────────────────┐');
-    console.log(`│  📱 OTP برای ${phone}        │`);
-    console.log(`│  🔑 کد: ${otp}                           │`);
-    console.log('└──────────────────────────────────────┘');
-    console.log('');
+    if (process.env.SMS_ENABLED === 'true') {
+      await sendSms(phone, smsText);
+      if (!isProd) {
+        console.log(`[OTP dev] SMS_ENABLED=true — code for ${phone}: ${otp}`);
+      }
+    } else if (!isProd) {
+      console.log(`[OTP dev] phone=${phone} code issued (see server log policy)`);
+      console.log(`[OTP dev] code for ${phone}: ${otp}`);
+    } else {
+      console.warn('SMS_ENABLED=false in production — OTP not delivered');
+    }
 
-    res.json({
-      success: true,
-      message: 'کد OTP تو ترمینال سرور چاپ شد',
-      dev_otp: otp,
-    });
+    res.json(uniformOk);
   } catch (err) {
+    console.error('send-otp error:', err.message);
     res.status(500).json({ success: false, message: 'خطای سرور' });
   }
 });
@@ -151,36 +174,39 @@ router.post('/send-otp', async (req, res) => {
 // ─────────────────────────────────────
 router.post('/verify-otp', async (req, res) => {
   try {
-    const { phone, otp } = req.body;
-    const record = otpStore.get(phone);
-
-    if (!record) {
+    const phone = String(req.body?.phone || '').trim();
+    const otp = String(req.body?.otp || '').trim();
+    if (!/^09[0-9]{9}$/.test(phone)) {
       return res
         .status(400)
-        .json({ success: false, message: 'ابتدا رمز درخواست کن' });
+        .json({ success: false, message: 'شماره معتبر نیست' });
     }
-    if (Date.now() > record.expiry) {
-      otpStore.delete(phone);
-      return res.status(400).json({ success: false, message: 'رمز منقضی شده' });
-    }
-    if (record.otp !== otp) {
+    if (!/^[0-9]{6}$/.test(otp)) {
       return res
         .status(400)
-        .json({ success: false, message: 'رمز اشتباه است' });
+        .json({ success: false, message: 'کد نامعتبر است' });
     }
 
-    otpStore.delete(phone);
+    const checked = await verifyOtp(phone, otp);
+    if (!checked.ok) {
+      return res.status(checked.code).json({
+        success: false,
+        message: checked.message,
+      });
+    }
 
     let user = await User.findOne({ phone });
     if (!user) {
-      user = await User.create({ name: 'کاربر جدید', phone });
+      return res.status(401).json({
+        success: false,
+        message: 'ابتدا ثبت‌نام کنید',
+      });
     }
 
     const { linkApprovedApplicationsForPhone } = require('../services/ownerApplicationReview');
     await linkApprovedApplicationsForPhone(phone);
     user = (await User.findById(user._id)) || user;
 
-    console.log('✅ OTP تأیید شد برای:', phone);
     sendToken(res, user);
   } catch (err) {
     res.status(500).json({ success: false, message: 'خطای سرور' });
@@ -199,6 +225,7 @@ router.get('/me', protect, (req, res) => {
       phone: req.user.phone,
       email: req.user.email,
       role: req.user.role,
+      walletBalance: req.user.walletBalance || 0,
     },
   });
 });
@@ -209,14 +236,16 @@ router.get('/me', protect, (req, res) => {
 router.patch('/me', protect, async (req, res) => {
   try {
     const { name, email } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { name, email },
-      { new: true, runValidators: true },
-    );
+    const patch = {};
+    if (name !== undefined) patch.name = name;
+    if (email !== undefined) patch.email = email;
+    const user = await User.findByIdAndUpdate(req.user._id, patch, {
+      new: true,
+      runValidators: true,
+    }).select('-password');
     res.json({ success: true, user });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    res.status(400).json({ success: false, message: clientErrorMessage(err, 'داده نامعتبر') });
   }
 });
 

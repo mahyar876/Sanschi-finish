@@ -51,6 +51,8 @@ function applyLastMinuteToSlot(sitePrice, dateStr, slotTimeStr, pitch, now = new
     discountPercent,
     flashDeal: true,
     urgency,
+    minutesUntil: Math.round(hoursUntil * 60),
+    /** @deprecated use minutesUntil */
     hoursUntil: Math.round(hoursUntil * 60),
   };
 }

@@ -513,7 +513,7 @@ function exportCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'sanschi-admin-finance.csv';
+  a.download = 'sanschii-admin-finance.csv';
   a.click();
   toast('فایل CSV دانلود شد ✓');
 }

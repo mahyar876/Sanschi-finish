@@ -6,10 +6,12 @@ import { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '@/lib/fetch-api';
 import { markDemoReservationPaid, upsertDemoReservation } from '@/lib/demo-reservations';
 import { isDemoFrontend } from '@/lib/demo';
-import { getToken } from '@/lib/session';
+import { getToken, getUser } from '@/lib/session';
 import { priceFa } from '@/lib/format';
 import { applyLocalDiscountCode } from '@/lib/local-discounts';
 import { numFa } from '@/lib/jalali';
+import { debitDemoWallet, fetchWalletBalance } from '@/lib/wallet';
+import { displaySlotTime } from '@/lib/slot-time';
 
 export function PaymentView() {
   const search = useSearchParams();
@@ -20,6 +22,15 @@ export function PaymentView() {
   const pitchName = search.get('pitchName') || '—';
   const date = search.get('date') || '—';
   const time = search.get('time') || '—';
+  const timeLabel = displaySlotTime(time);
+  const recurringWeeks = parseInt(search.get('weeks') || '0', 10);
+  const weeklyAmount = parseInt(search.get('weeklyAmount') || '0', 10);
+  const firstWeekAmount = parseInt(search.get('firstWeekAmount') || '0', 10);
+  const regularWeekAmount = parseInt(search.get('regularWeekAmount') || '0', 10);
+  const recurringPriceSplit =
+    firstWeekAmount > 0 &&
+    regularWeekAmount > 0 &&
+    firstWeekAmount !== regularWeekAmount;
   const name = search.get('name') || '—';
   const payResult = search.get('payResult');
   const refId = search.get('refId') || '';
@@ -37,6 +48,15 @@ export function PaymentView() {
   const [discMsg, setDiscMsg] = useState('');
   const [discLoading, setDiscLoading] = useState(false);
   const [discountLocked, setDiscountLocked] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    void fetchWalletBalance()
+      .then(setWalletBalance)
+      .catch(() => setWalletBalance(0));
+  }, [finalAmount, done]);
 
   useEffect(() => {
     if (payResult === 'success' && search.get('code')) {
@@ -159,6 +179,61 @@ export function PaymentView() {
     }
   }
 
+  const canPayWithWallet =
+    finalAmount > 0 &&
+    walletBalance >= finalAmount &&
+    Boolean(reservationId) &&
+    !reservationId.startsWith('mock') &&
+    !recurringGroupId &&
+    Boolean(getToken());
+
+  async function payWithWallet() {
+    setLoading(true);
+    setErr('');
+    const token = getToken();
+    if (!token) {
+      setErr('ابتدا وارد حساب شوید');
+      setLoading(false);
+      return;
+    }
+    if (!canPayWithWallet) {
+      setErr('موجودی کیف پول برای این مبلغ کافی نیست');
+      setLoading(false);
+      return;
+    }
+    try {
+      if (isDemoFrontend() || token.startsWith('demo-token')) {
+        debitDemoWallet(finalAmount, `رزرو ${pitchName}`);
+        const isMock =
+          !reservationId || reservationId.startsWith('mock') || isDemoFrontend();
+        await payDemoInternal(token, isMock);
+        setWalletBalance(await fetchWalletBalance());
+        return;
+      }
+      await apiFetch(`/reservations/${reservationId}/revalidate`, {
+        method: 'POST',
+        body: '{}',
+      });
+      const data = await apiFetch<{
+        success: boolean;
+        message?: string;
+        code?: string;
+        walletBalance?: number;
+      }>(`/reservations/${reservationId}/pay`, {
+        method: 'POST',
+        body: JSON.stringify({ paymentMethod: 'wallet' }),
+      });
+      if (!data.success) throw new Error(data.message);
+      setCode(data.code || '');
+      if (typeof data.walletBalance === 'number') setWalletBalance(data.walletBalance);
+      setDone(true);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'خطا');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function payWithGateway() {
     setLoading(true);
     setErr('');
@@ -246,7 +321,7 @@ export function PaymentView() {
             </p>
           )}
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            {pitchName} · {date} · {time}
+            {pitchName} · {date} · {timeLabel}
           </p>
           {code && (
             <img
@@ -290,10 +365,37 @@ export function PaymentView() {
               </tr>
               <tr>
                 <th>سانس</th>
-                <td>{time}</td>
+                <td>{timeLabel}</td>
               </tr>
+              {recurringGroupId && recurringWeeks >= 2 && (
+                <>
+                  <tr>
+                    <th>نوع</th>
+                    <td>رزرو تکراری — {numFa(recurringWeeks)} هفته</td>
+                  </tr>
+                  {recurringPriceSplit ? (
+                    <>
+                      <tr>
+                        <th>هفته اول (لحظه‌آخر)</th>
+                        <td>{priceFa(firstWeekAmount)} تومان</td>
+                      </tr>
+                      <tr>
+                        <th>هر هفته بعد</th>
+                        <td>{priceFa(regularWeekAmount)} تومان</td>
+                      </tr>
+                    </>
+                  ) : (
+                    weeklyAmount > 0 && (
+                      <tr>
+                        <th>هر هفته</th>
+                        <td>{priceFa(weeklyAmount)} تومان</td>
+                      </tr>
+                    )
+                  )}
+                </>
+              )}
               <tr>
-                <th>مبلغ</th>
+                <th>{recurringGroupId ? 'جمع کل' : 'مبلغ'}</th>
                 <td>{priceFa(subtotal)} تومان</td>
               </tr>
               {discountAmount > 0 && (
@@ -349,6 +451,35 @@ export function PaymentView() {
           )}
         </div>
 
+        {getToken() && (
+          <div
+            className={
+              canPayWithWallet ? 'wallet-pay-panel' : 'wallet-pay-panel disabled'
+            }
+          >
+            <p style={{ margin: '0 0 0.5rem', fontWeight: 700 }}>کیف پول</p>
+            <p className="muted-sm" style={{ margin: '0 0 0.75rem' }}>
+              موجودی: <strong>{priceFa(walletBalance)}</strong> تومان
+              {!canPayWithWallet && finalAmount > walletBalance && (
+                <>
+                  {' '}
+                  — برای این رزرو {priceFa(finalAmount - walletBalance)} کم دارید.{' '}
+                  <Link href="/player/wallet">شارژ کیف پول</Link>
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ width: '100%' }}
+              disabled={loading || !canPayWithWallet}
+              onClick={() => void payWithWallet()}
+            >
+              پرداخت با کیف پول
+            </button>
+          </div>
+        )}
+
         {lockNote && <p className="notice">{lockNote}</p>}
         {err && <p className="form-msg err">{err}</p>}
         <button
@@ -356,7 +487,7 @@ export function PaymentView() {
           className="btn btn-primary"
           style={{ width: '100%', marginTop: '1rem' }}
           disabled={loading}
-          onClick={payWithGateway}
+          onClick={() => void payWithGateway()}
         >
           {isDemoFrontend() ||
           (reservationId && reservationId.startsWith('mock')) ||

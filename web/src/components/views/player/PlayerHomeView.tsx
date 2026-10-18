@@ -13,10 +13,13 @@ import { isDemoFrontend } from '@/lib/demo';
 import { PartnerApplicationStatusBanner } from '@/components/PartnerApplicationStatusBanner';
 import { getUser } from '@/lib/session';
 import { apiFetch } from '@/lib/fetch-api';
+import { fetchWalletBalance } from '@/lib/wallet';
+import { priceFa } from '@/lib/format';
 
 export function PlayerHomeView() {
   const [upcoming, setUpcoming] = useState(0);
   const [pending, setPending] = useState(0);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const user = getUser();
 
   useEffect(() => {
@@ -40,6 +43,12 @@ export function PlayerHomeView() {
       });
   }, []);
 
+  useEffect(() => {
+    void fetchWalletBalance()
+      .then(setWalletBalance)
+      .catch(() => setWalletBalance(0));
+  }, []);
+
   return (
     <>
       <PageIntro
@@ -56,7 +65,15 @@ export function PlayerHomeView() {
       <StatGrid>
         <StatCard label="رزروهای فعال" value={upcoming} />
         <StatCard label="در انتظار پرداخت" value={pending} />
-        <StatCard label="اعتبار کیف پول" value="۰ تومان" hint="به‌زودی" />
+        <StatCard
+          label="اعتبار کیف پول"
+          value={
+            walletBalance === null
+              ? '…'
+              : `${priceFa(walletBalance)} تومان`
+          }
+          hint={walletBalance !== null ? 'شارژ از بخش کیف پول' : undefined}
+        />
         <StatCard label="تخفیف فعال" value="—" hint="بخش تخفیف‌ها" />
       </StatGrid>
       <ActionsPanel title="شروع سریع">

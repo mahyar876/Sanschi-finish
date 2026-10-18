@@ -1,4 +1,4 @@
-const KEY = 'sanschi_favorites';
+const KEY = 'sanschii_favorites';
 
 export function loadFavoritePitchIds(): string[] {
   if (typeof window === 'undefined') return [];

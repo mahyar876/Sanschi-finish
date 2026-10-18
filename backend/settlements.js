@@ -1,5 +1,5 @@
 // routes/settlements.js
-// تسویه مالی بین سانس‌یار و صاحبان زمین — کمیسیون ثابت به ازای هر رزرو،
+// تسویه مالی بین سانس‌چی و صاحبان زمین — کمیسیون ثابت به ازای هر رزرو،
 // مخصوص هر زمین (نه درصدی و نه سراسری). مقدار کمیسیون لحظه‌ی پرداخت روی
 // خود رزرو snapshot می‌شه (Reservation.siteCommission / pitchAmount) و
 // اینجا فقط همون مقادیر جمع زده می‌شن.
@@ -471,7 +471,7 @@ router.patch('/:id/reject', protect, adminOnly, async (req, res) => {
 });
 
 // ─────────────────────────────────────
-// GET /api/settlements/summary  (ادمین: خلاصه کل کمیسیون سانس‌یار)
+// GET /api/settlements/summary  (ادمین: خلاصه کل کمیسیون سانس‌چی)
 // ─────────────────────────────────────
 router.get('/summary', protect, adminOnly, async (req, res) => {
   try {

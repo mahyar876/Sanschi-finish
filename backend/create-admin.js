@@ -32,7 +32,7 @@ userSchema.pre('save', async function (next) {
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 // ── اطلاعات ادمین — اینجا عوض کن ──
-const ADMIN_EMAIL = 'admin@sansyar.ir';
+const ADMIN_EMAIL = 'admin@sanschii.ir';
 const ADMIN_PASS = 'Admin@1234';
 const ADMIN_PHONE = '09337752754';
 const ADMIN_NAME = 'مدیر سیستم';

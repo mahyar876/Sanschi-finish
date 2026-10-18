@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   ActionsPanel,
@@ -132,8 +133,13 @@ export function FinanceView() {
       <StatGrid>
         <StatCard label="ناخالص" value={priceFa(gross)} />
         <StatCard label="کارمزد سانس‌چی" value={priceFa(commission)} />
-        <StatCard label="سهم شما (خالص)" value={priceFa(net)} />
+        <StatCard label="سهم شما (خالص)" value={priceFa(net)} hint="قابل تسویه" />
       </StatGrid>
+
+      <p className="notice">
+        برای درخواست واریز به حساب از{' '}
+        <Link href="/settlement">صفحه تسویه</Link> استفاده کنید.
+      </p>
 
       <DataSection title="جزئیات">
       <div className="data-table-wrap">

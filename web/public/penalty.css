@@ -454,22 +454,14 @@
       /* ── BALL ── */
       .ball {
         position: absolute;
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
-        background: radial-gradient(
-          circle at 35% 35%,
-          #fff 0%,
-          #c8c8c8 55%,
-          #888 100%
-        );
-        border: 1.5px solid rgba(0, 0, 0, 0.3);
-        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.7);
         left: 50%;
-        bottom: 24%;
+        bottom: 26%;
         transform: translateX(-50%);
         pointer-events: none;
-        z-index: 15;
+        z-index: 12;
       }
       .ball.shoot {
         transition:
@@ -482,16 +474,16 @@
       /* ball shadow */
       .ball-shadow {
         position: absolute;
-        width: 22px;
-        height: 8px;
+        width: 26px;
+        height: 9px;
         border-radius: 50%;
         background: rgba(0, 0, 0, 0.4);
         filter: blur(3px);
         left: 50%;
-        bottom: 23.5%;
+        bottom: 25.5%;
         transform: translateX(-50%);
         pointer-events: none;
-        z-index: 14;
+        z-index: 11;
         transition: all var(--ball-dur) ease;
       }
       .ball.shoot ~ .ball-shadow,
@@ -590,19 +582,23 @@
       /* instruct */
       .instr {
         position: absolute;
-        bottom: 14%;
+        bottom: 8%;
         left: 50%;
         transform: translateX(-50%);
         font-size: 12px;
-        color: var(--muted);
-        white-space: nowrap;
+        color: var(--text, #e8f5ee);
+        white-space: normal;
+        text-align: center;
+        line-height: 1.45;
+        max-width: min(92%, 320px);
         pointer-events: none;
-        z-index: 5;
-        background: rgba(7, 16, 13, 0.6);
-        padding: 5px 14px;
+        z-index: 24;
+        background: rgba(7, 16, 13, 0.88);
+        padding: 7px 14px;
         border-radius: 20px;
-        border: 1px solid var(--border);
-        backdrop-filter: blur(4px);
+        border: 1px solid rgba(38, 179, 106, 0.35);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
       }
 
       /* ── نتیجه شوت (نوار پایین زمین، نه پاپ‌آپ وسط) ── */

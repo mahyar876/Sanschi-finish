@@ -2,10 +2,12 @@ import { VENUES } from '@/data/venues';
 import type { Pitch } from '@/lib/pitch-types';
 import { defaultSlots } from '@/lib/pitch-types';
 import { isUsablePitchImage } from '@/lib/venue-images';
+import { enrichPitchCatalogFields } from '@/lib/pitch-catalog-enrichment';
+import { normalizeAmenityIds } from '@/lib/pitch-amenities';
 
-const KEY = 'sanschi_demo_pitches';
-const STORAGE_VERSION = 3;
-const VERSION_KEY = 'sanschi_demo_pitches_v';
+const KEY = 'sanschii_demo_pitches';
+const STORAGE_VERSION = 6;
+const VERSION_KEY = 'sanschii_demo_pitches_v';
 
 function ensureDemoStorageVersion() {
   if (typeof window === 'undefined') return;
@@ -16,10 +18,18 @@ function ensureDemoStorageVersion() {
 }
 
 function venueToPitch(v: (typeof VENUES)[0], index: number): Pitch {
+  const type = v.category === 'grass' ? 'grass' : 'futsal';
+  const enriched = enrichPitchCatalogFields({
+    name: v.name,
+    address: `${v.address}، ${v.city}`,
+    type,
+    size: v.size,
+    tags: v.tags,
+  });
   return {
     _id: `demo-${v.id}`,
     name: v.name,
-    type: v.category === 'grass' ? 'grass' : 'futsal',
+    type,
     size: v.size,
     price: v.priceFrom,
     address: `${v.address}، ${v.city}`,
@@ -33,6 +43,10 @@ function venueToPitch(v: (typeof VENUES)[0], index: number): Pitch {
     owner: index === 0 ? { _id: 'demo-owner', name: 'مالک نمایشی', phone: '09121111111' } : null,
     lat: v.lat,
     lng: v.lng,
+    amenities: enriched.amenities,
+    maxCapacity: enriched.maxCapacity,
+    womenBookingAllowed: enriched.womenBookingAllowed,
+    rulesText: enriched.rulesText,
   };
 }
 
@@ -63,6 +77,10 @@ export function loadDemoPitches(): Pitch[] {
         address: cur.address?.trim() ? cur.address : b.address,
         type: cur.type === 'grass' || cur.type === 'futsal' ? cur.type : b.type,
         image: isUsablePitchImage(cur.image) ? cur.image!.trim() : b.image,
+        amenities:
+          cur.amenities !== undefined
+            ? normalizeAmenityIds(cur.amenities)
+            : b.amenities,
       };
     });
   } catch {

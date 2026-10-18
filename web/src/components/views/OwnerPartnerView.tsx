@@ -10,9 +10,13 @@ import {
 import { TEHRAN_ZONE_LABEL, TEHRAN_ZONE_ORDER, type TehranZone } from '@/lib/tehran-zones';
 import { getUser } from '@/lib/session';
 import { pitchSizeLabel, priceFa } from '@/lib/format';
+import { isValidSheba, normalizeSheba } from '@/lib/sheba';
+import { WomenBookingSelect } from '@/components/form/WomenBookingSelect';
 
 export function OwnerPartnerView() {
-  const [contactName, setContactName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [sheba, setSheba] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
@@ -20,7 +24,11 @@ export function OwnerPartnerView() {
 
   useEffect(() => {
     const session = getUser();
-    if (session?.name) setContactName(session.name);
+    if (session?.name) {
+      const parts = session.name.trim().split(/\s+/);
+      setFirstName(parts[0] || '');
+      setLastName(parts.slice(1).join(' ') || '');
+    }
     if (session?.phone) setPhone(session.phone);
     if (session?.email) setEmail(session.email);
 
@@ -28,7 +36,9 @@ export function OwnerPartnerView() {
     void fetchMyOwnerApplication().then((app) => {
       if (!app || app.status !== 'needs_revision') return;
       setRevisionHint(app.revisionNote || '');
-      setContactName(app.contactName);
+      setFirstName(app.firstName || app.contactName.split(/\s+/)[0] || '');
+      setLastName(app.lastName || app.contactName.split(/\s+/).slice(1).join(' ') || '');
+      if (app.sheba) setSheba(app.sheba);
       setPhone(app.phone);
       if (app.email) setEmail(app.email);
       setVenueName(app.venueName);
@@ -38,6 +48,9 @@ export function OwnerPartnerView() {
       if (app.tehranZone) setTehranZone(app.tehranZone as TehranZone);
       setBasePriceText(String(app.basePrice));
       if (app.description) setDescription(app.description);
+      if (app.womenBookingAllowed === true || app.womenBookingAllowed === false) {
+        setWomenBookingAllowed(app.womenBookingAllowed);
+      }
     });
   }, []);
   const [venueName, setVenueName] = useState('');
@@ -47,6 +60,7 @@ export function OwnerPartnerView() {
   const [tehranZone, setTehranZone] = useState<TehranZone | ''>('center');
   const [basePriceText, setBasePriceText] = useState('550000');
   const [description, setDescription] = useState('');
+  const [womenBookingAllowed, setWomenBookingAllowed] = useState<boolean | null>(null);
   const [err, setErr] = useState('');
   const [done, setDone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,9 +76,27 @@ export function OwnerPartnerView() {
       setLoading(false);
       return;
     }
+    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+      setErr('نام و نام خانوادگی را کامل وارد کنید.');
+      setLoading(false);
+      return;
+    }
+    if (!isValidSheba(sheba)) {
+      setErr('شماره شبا معتبر نیست — IR به‌علاوه ۲۴ رقم.');
+      setLoading(false);
+      return;
+    }
+    if (womenBookingAllowed !== true && womenBookingAllowed !== false) {
+      setErr('لطفاً مشخص کنید آیا رزرو برای بانوان در زمین شما مجاز است یا خیر.');
+      setLoading(false);
+      return;
+    }
     try {
       const { message } = await submitOwnerApplication({
-        contactName: contactName.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        contactName: `${firstName.trim()} ${lastName.trim()}`,
+        sheba: normalizeSheba(sheba),
         phone: phone.trim(),
         email: email.trim() || undefined,
         venueName: venueName.trim(),
@@ -73,6 +105,7 @@ export function OwnerPartnerView() {
         address: address.trim(),
         tehranZone: tehranZone || undefined,
         basePrice,
+        womenBookingAllowed,
         description: description.trim() || undefined,
       });
       setDone(message);
@@ -143,16 +176,41 @@ export function OwnerPartnerView() {
       )}
 
       <form className="panel partner-form" onSubmit={onSubmit}>
-        <h2>اطلاعات تماس</h2>
+        <h2>اطلاعات تماس و تسویه</h2>
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="partner-first">نام</label>
+            <input
+              id="partner-first"
+              required
+              minLength={2}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="partner-last">نام خانوادگی</label>
+            <input
+              id="partner-last"
+              required
+              minLength={2}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+            />
+          </div>
+        </div>
         <div className="field">
-          <label htmlFor="partner-name">نام و نام خانوادگی</label>
+          <label htmlFor="partner-sheba">شماره شبا (برای واریز درآمد)</label>
           <input
-            id="partner-name"
+            id="partner-sheba"
             required
-            minLength={3}
-            value={contactName}
-            onChange={(e) => setContactName(e.target.value)}
+            dir="ltr"
+            className="input-ltr"
+            value={sheba}
+            onChange={(e) => setSheba(e.target.value)}
+            placeholder="IR120170000000000000000000"
           />
+          <p className="muted-sm">شماره شبای همان صاحب حساب — ۲۶ کاراکتر با IR</p>
         </div>
         <div className="field-row">
           <div className="field">
@@ -256,6 +314,13 @@ export function OwnerPartnerView() {
             {priceFa(parseInt(basePriceText, 10) || 0)} تومان
           </p>
         </div>
+        <WomenBookingSelect
+          id="partner-women-booking"
+          value={womenBookingAllowed}
+          onChange={setWomenBookingAllowed}
+          requireChoice
+          hint="در گالری و صفحه رزرو برای بازیکنان نمایش داده می‌شود؛ بعداً در پنل مالک هم قابل تغییر است."
+        />
         <div className="field">
           <label htmlFor="partner-desc">توضیحات (اختیاری)</label>
           <textarea
@@ -273,8 +338,8 @@ export function OwnerPartnerView() {
           <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? 'در حال ارسال…' : 'ارسال برای بررسی'}
           </button>
-          <Link href="/gallery" className="btn btn-ghost">
-            مشاهده زمین‌های فعلی
+          <Link href="/reserve" className="btn btn-ghost">
+            رفتن به رزرو
           </Link>
         </div>
       </form>

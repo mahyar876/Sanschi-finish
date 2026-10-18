@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>راهنمای نصب و اجرای سانس‌چی</title>
+    <style>
+      :root {
+        --text: #1a1a1a;
+        --muted: #444;
+        --accent: #1a7f4c;
+        --border: #ccc;
+        --code-bg: #f4f4f4;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 2rem 2.5rem 3rem;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        font-size: 11.5pt;
+        line-height: 1.75;
+        color: var(--text);
+        max-width: 210mm;
+        margin-inline: auto;
+      }
+      h1 {
+        font-size: 22pt;
+        margin: 0 0 0.35rem;
+        color: var(--accent);
+      }
+      .subtitle {
+        color: var(--muted);
+        margin: 0 0 1.75rem;
+        font-size: 11pt;
+      }
+      h2 {
+        font-size: 14pt;
+        margin: 1.75rem 0 0.65rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 2px solid var(--accent);
+        page-break-after: avoid;
+      }
+      h3 {
+        font-size: 12pt;
+        margin: 1.15rem 0 0.4rem;
+        page-break-after: avoid;
+      }
+      p,
+      li {
+        margin: 0.4rem 0;
+      }
+      ul,
+      ol {
+        margin: 0.5rem 0 0.75rem;
+        padding-right: 1.35rem;
+      }
+      li {
+        margin: 0.35rem 0;
+      }
+      code,
+      pre {
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 10pt;
+        direction: ltr;
+        text-align: left;
+      }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        overflow-x: auto;
+        margin: 0.65rem 0 1rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .box {
+        border: 1px solid var(--border);
+        border-right: 4px solid var(--accent);
+        padding: 0.85rem 1rem;
+        margin: 1rem 0;
+        background: #fafafa;
+        border-radius: 4px;
+      }
+      .box strong {
+        display: block;
+        margin-bottom: 0.35rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.75rem 0 1rem;
+        font-size: 10.5pt;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 0.45rem 0.65rem;
+        text-align: right;
+      }
+      th {
+        background: #eee;
+      }
+      a {
+        color: var(--accent);
+        word-break: break-all;
+      }
+      .step-num {
+        display: inline-block;
+        min-width: 1.6rem;
+        height: 1.6rem;
+        line-height: 1.6rem;
+        text-align: center;
+        background: var(--accent);
+        color: #fff;
+        border-radius: 50%;
+        font-size: 10pt;
+        font-weight: 700;
+        margin-left: 0.35rem;
+        vertical-align: middle;
+      }
+      .cover-meta {
+        font-size: 10pt;
+        color: var(--muted);
+        margin-top: 2rem;
+      }
+      @media print {
+        body {
+          padding: 0;
+        }
+        h2 {
+          page-break-before: auto;
+        }
+        pre,
+        .box {
+          page-break-inside: avoid;
+        }
+        a {
+          color: var(--text);
+          text-decoration: none;
+        }
+      }
+      @page {
+        size: A4;
+        margin: 18mm 16mm;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>راهنمای نصب و اجرای پروژه سانس‌چی</h1>
+    <p class="subtitle">رزرو آنلاین چمن فوتبال، سالن فوتسال و والیبال — اجرا روی ویندوز (لوکال)</p>
+
+    <div class="box">
+      <strong>این فایل برای چه کسی است؟</strong>
+      کسی که فایل ZIP پروژه را دریافت کرده و می‌خواهد سایت و API را روی لپ‌تاپ/PC خودش
+      بالا بیاورد. نیاز به اینترنت برای دانلود Node.js و MongoDB و برای <code>npm install</code> دارید.
+    </div>
+
+    <h2>۱. پیش‌نیازها</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>نرم‌افزار</th>
+          <th>نسخه پیشنهادی</th>
+          <th>دانلود</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Node.js (شامل npm)</td>
+          <td>۱۸ LTS یا جدیدتر</td>
+          <td><a href="https://nodejs.org">nodejs.org</a></td>
+        </tr>
+        <tr>
+          <td>MongoDB Community</td>
+          <td>آخرین نسخه ویندوز</td>
+          <td><a href="https://www.mongodb.com/try/download/community">mongodb.com/try/download/community</a></td>
+        </tr>
+        <tr>
+          <td>ویرایشگر متن (اختیاری)</td>
+          <td>—</td>
+          <td>Notepad، VS Code، Cursor</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>۱.۱ نصب Node.js</h3>
+    <ol>
+      <li>از سایت Node.js نسخه <strong>LTS</strong> را دانلود و نصب کنید (Next, Next).</li>
+      <li>PowerShell یا CMD را باز کنید و بنویسید:</li>
+    </ol>
+    <pre>node -v
+npm -v</pre>
+    <p>باید دو عدد نسخه (مثلاً v20 و 10.x) نمایش داده شود.</p>
+
+    <h3>۱.۲ نصب MongoDB</h3>
+    <ol>
+      <li>MongoDB Community Server را برای Windows نصب کنید.</li>
+      <li>در نصب، گزینه نصب به‌صورت <strong>Service</strong> را بگذارید تا با روشن شدن ویندوز اجرا شود.</li>
+      <li>پورت پیش‌فرض: <strong>27017</strong></li>
+      <li>بعد از نصب، در «Services» ویندوز سرویس <strong>MongoDB</strong> باید وضعیت <strong>Running</strong> داشته باشد.</li>
+    </ol>
+
+    <h2>۲. باز کردن فایل ZIP پروژه</h2>
+    <ol>
+      <li>فایل <code>reserve-football-sanschii.zip</code> را Extract کنید (مثلاً روی Desktop).</li>
+      <li>پوشهٔ اصلی معمولاً <code>reserve-football</code> نام دارد.</li>
+      <li>داخل آن سه بخش مهم است:</li>
+    </ol>
+    <table>
+      <thead>
+        <tr><th>پوشه</th><th>کار</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>web/</code></td><td>سایت (Next.js) — آدرس مرورگر localhost:3000</td></tr>
+        <tr><td><code>backend/</code></td><td>API (Express) — پورت 5000</td></tr>
+        <tr><td><code>frontend/</code></td><td>نسخه قدیمی HTML — برای اجرای عادی لازم نیست</td></tr>
+      </tbody>
+    </table>
+
+    <h2>۳. راه‌اندازی API (بک‌اند) — ترمینال اول</h2>
+    <p><span class="step-num">۱</span> PowerShell را باز کنید و بروید داخل پوشه backend:</p>
+    <pre>cd مسیر\به\reserve-football\backend</pre>
+    <p>مثال:</p>
+    <pre>cd C:\Users\YourName\Desktop\reserve-football\backend</pre>
+
+    <p><span class="step-num">۲</span> فایل تنظیمات محیط را بسازید (فقط یک بار):</p>
+    <pre>copy .env.example .env</pre>
+
+    <p><span class="step-num">۳</span> فایل <code>.env</code> را با Notepad باز کنید. خط مهم:</p>
+    <pre>MONGO_URI=mongodb://localhost:27017/sanschii</pre>
+    <p>اگر MongoDB روی همان کامپیوتر است، همین مقدار را نگه دارید.</p>
+
+    <p><span class="step-num">۴</span> نصب کتابخانه‌ها (اولین بار؛ چند دقیقه طول می‌کشد):</p>
+    <pre>npm install</pre>
+
+    <p><span class="step-num">۵</span> اجرای سرور توسعه:</p>
+    <pre>npm run dev</pre>
+    <p>اگر درست باشد می‌بینید:</p>
+    <pre>MongoDB connected
+Server running on 5000</pre>
+    <div class="box">
+      <strong>مهم</strong>
+      این پنجره PowerShell را <strong>باز نگه دارید</strong>. با بستن آن API خاموش می‌شود.
+    </div>
+
+    <h2>۴. راه‌اندازی سایت (فرانت) — ترمینال دوم</h2>
+    <p>یک PowerShell <strong>جدید</strong> باز کنید (اولی را نبندید).</p>
+
+    <p><span class="step-num">۱</span></p>
+    <pre>cd مسیر\به\reserve-football\web</pre>
+
+    <p><span class="step-num">۲</span> نصب کتابخانه‌ها (اولین بار):</p>
+    <pre>npm install</pre>
+
+    <p><span class="step-num">۳</span> فایل <code>.env.local</code> در پوشه <code>web</code> بسازید (Notepad):</p>
+    <pre>NEXT_PUBLIC_DEMO_MODE=false</pre>
+    <p>یا از نمونه کپی کنید:</p>
+    <pre>copy .env.local.example .env.local</pre>
+    <p>و داخلش <code>NEXT_PUBLIC_DEMO_MODE=false</code> را فعال کنید.</p>
+
+    <p><span class="step-num">۴</span> اجرای سایت:</p>
+    <pre>npm run dev</pre>
+    <p>وقتی Ready شد، مرورگر را باز کنید:</p>
+    <pre>http://localhost:3000</pre>
+
+    <h2>۵. تست اینکه همه چیز کار می‌کند</h2>
+    <table>
+      <thead>
+        <tr><th>آدرس</th><th>انتظار</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>http://localhost:3000</code></td><td>صفحهٔ اصلی سانس‌چی</td></tr>
+        <tr><td><code>http://localhost:3000/api/health</code></td><td>JSON با db: true</td></tr>
+        <tr><td><code>http://localhost:5000/api/health</code></td><td>پاسخ سلامت API (مستقیم)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>۶. ورود، ثبت‌نام و OTP</h2>
+    <ul>
+      <li>از منو بروید <strong>ورود / ثبت‌نام</strong>.</li>
+      <li>شماره موبایل ایرانی (مثلاً 09123456789) و رمز عبور وارد کنید.</li>
+      <li>در حالت لوکال، <strong>پیامک واقعی ارسال نمی‌شود</strong>.</li>
+      <li>کد OTP روی <strong>همان صفحه</strong> یا در <strong>ترمینال backend</strong> نمایش داده می‌شود — آن را وارد کنید.</li>
+    </ul>
+
+    <h2>۷. هر بار که می‌خواهید پروژه را اجرا کنید</h2>
+    <ol>
+      <li>MongoDB باید روشن باشد (سرویس Running).</li>
+      <li>ترمینال ۱: <code>cd backend</code> → <code>npm run dev</code></li>
+      <li>ترمینال ۲: <code>cd web</code> → <code>npm run dev</code></li>
+      <li>مرورگر: <code>http://localhost:3000</code></li>
+    </ol>
+
+    <h2>۸. رفع مشکلات رایج</h2>
+
+    <h3>MongoDB connected نمی‌آید / db: false</h3>
+    <ul>
+      <li>Services → MongoDB → Start</li>
+      <li>در <code>backend\.env</code> مقدار MONGO_URI را چک کنید.</li>
+      <li>فایروال یا آنتی‌ویروس گاهی MongoDB را مسدود می‌کند — یک بار Exception بدهید.</li>
+    </ul>
+
+    <h3>npm install خطا می‌دهد</h3>
+    <ul>
+      <li>Node را به‌روز کنید (LTS).</li>
+      <li>اینترنت پایدار باشد.</li>
+      <li>دوباره: <code>npm install</code></li>
+    </ul>
+
+    <h3>صفحه سایت باز می‌شود ولی رزرو/API کار نمی‌کند</h3>
+    <ul>
+      <li>backend حتماً روی 5000 در حال اجرا باشد.</li>
+      <li>در <code>web\.env.local</code> مقدار <code>NEXT_PUBLIC_DEMO_MODE=false</code> باشد.</li>
+      <li>هر دو ترمینال را یک بار ببندید و از نو <code>npm run dev</code> بزنید.</li>
+    </ul>
+
+    <h3>پورت 3000 یا 5000 اشغال است</h3>
+    <ul>
+      <li>برنامهٔ دیگری که همان پورت را گرفته ببندید، یا در <code>backend\.env</code> مقدار PORT را عوض کنید (پیشرفته).</li>
+    </ul>
+
+    <h2>۹. خلاصه دستورات (کپی سریع)</h2>
+    <pre># ترمینال ۱ — API
+cd backend
+copy .env.example .env
+npm install
+npm run dev
+
+# ترمینال ۲ — سایت
+cd web
+npm install
+# فایل .env.local با NEXT_PUBLIC_DEMO_MODE=false
+npm run dev
+
+# مرورگر
+http://localhost:3000</pre>
+
+    <p class="cover-meta">
+      سانس‌چی (reserve-football) — راهنمای اجرای لوکال<br />
+      فایل همراه ZIP پروژه — بدون node_modules؛ بعد از Extract حتماً npm install در web و backend
+    </p>
+  </body>
+</html>

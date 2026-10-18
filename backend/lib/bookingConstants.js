@@ -42,6 +42,14 @@ const SLOT_STATUS = {
   PAST: 'past',
 };
 
+/** رزروهایی که سانس را «اشغال» می‌کنند — برای جلوگیری از رزرو همزمان */
+const ACTIVE_SLOT_BOOKING_STATUSES = [
+  BOOKING_STATUS.PENDING_PAYMENT,
+  BOOKING_STATUS.CONFIRMED,
+  BOOKING_STATUS.CHECKED_IN,
+  BOOKING_STATUS.REFUND_PENDING,
+];
+
 /** نگاشت bookingStatus → فیلد legacy `status` برای سازگاری */
 function legacyStatusFromBooking(bookingStatus) {
   switch (bookingStatus) {
@@ -70,5 +78,6 @@ module.exports = {
   BOOKING_STATUS,
   PAYMENT_STATUS,
   SLOT_STATUS,
+  ACTIVE_SLOT_BOOKING_STATUSES,
   legacyStatusFromBooking,
 };

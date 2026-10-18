@@ -30,7 +30,7 @@ export default function TermsPage() {
       <h2>تماس</h2>
       <p>
         برای اختلاف یا پشتیبانی با{' '}
-        <a href="mailto:support@sanschi.ir">support@sanschi.ir</a> مکاتبه کنید.
+        <a href="mailto:support@sanschii.ir">support@sanschii.ir</a> مکاتبه کنید.
       </p>
     </div>
   );

@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 
 const ownerApplicationSchema = new mongoose.Schema({
   contactName: { type: String, required: true, trim: true },
+  firstName: { type: String, trim: true, default: '' },
+  lastName: { type: String, trim: true, default: '' },
+  sheba: { type: String, trim: true, uppercase: true, default: '' },
   phone: {
     type: String,
     required: true,
@@ -18,6 +21,8 @@ const ownerApplicationSchema = new mongoose.Schema({
     default: '',
   },
   basePrice: { type: Number, required: true, min: 0 },
+  /** true = رزرو بانوان مجاز؛ false = فقط آقایان */
+  womenBookingAllowed: { type: Boolean, default: null },
   description: { type: String, default: '' },
   status: {
     type: String,

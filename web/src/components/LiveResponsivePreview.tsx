@@ -2,6 +2,14 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ADMIN_NAV,
+  OWNER_NAV,
+  PLAYER_NAV,
+  type NavGroup,
+} from '@/lib/dashboard-nav';
+import { withUiPreview } from '@/lib/ui-preview';
+import { CollapsibleAsideList } from '@/components/CollapsibleFilterSection';
 
 const DEVICES = [
   { id: 'iphone-se', label: 'iPhone SE', width: 375, height: 667 },
@@ -14,46 +22,46 @@ const DEVICES = [
 
 type Zone = 'public' | 'player' | 'owner' | 'admin';
 
-type PageDef = { id: string; title: string; path: string; fullPageHint?: string };
+type PageDef = { id: string; title: string; path: string };
+
+function pagesFromNav(groups: NavGroup[]): PageDef[] {
+  const seen = new Set<string>();
+  const out: PageDef[] = [];
+  for (const g of groups) {
+    for (const item of g.items) {
+      if (seen.has(item.href)) continue;
+      seen.add(item.href);
+      out.push({
+        id: item.href.replace(/\//g, '_'),
+        title: item.label,
+        path: withUiPreview(item.href),
+      });
+    }
+  }
+  return out;
+}
+
+const PUBLIC_PAGES: PageDef[] = [
+  { id: 'home', title: 'خانه', path: withUiPreview('/') },
+  { id: 'gallery', title: 'گالری زمین‌ها', path: withUiPreview('/gallery') },
+  { id: 'reserve', title: 'رزرو سانس', path: withUiPreview('/reserve') },
+  { id: 'about', title: 'درباره ما', path: withUiPreview('/about') },
+  { id: 'login', title: 'ورود / ثبت‌نام', path: withUiPreview('/login') },
+  { id: 'penalty', title: 'بازی پنالتی', path: withUiPreview('/penalty') },
+  {
+    id: 'payment',
+    title: 'پرداخت (نمونه)',
+    path: withUiPreview(
+      '/payment?reservationId=preview&amount=520000&pitchName=Preview&date=1404/07/20&time=18:00-19:30&name=Preview&phone=09120000000',
+    ),
+  },
+];
 
 const PAGES_BY_ZONE: Record<Zone, PageDef[]> = {
-  public: [
-    { id: 'home', title: 'خانه', path: '/' },
-    { id: 'gallery', title: 'گالری', path: '/gallery' },
-    { id: 'venue', title: 'جزئیات زمین', path: '/gallery/futsal-aria-tehran' },
-    { id: 'reserve', title: 'رزرو', path: '/reserve?pitchId=demo-1' },
-    { id: 'login', title: 'ورود', path: '/login' },
-  ],
-  player: [
-    {
-      id: 'player-home',
-      title: 'داشبورد بازیکن',
-      path: '/player',
-      fullPageHint: '/login?redirect=%2Fplayer',
-    },
-    { id: 'player-res', title: 'رزروهای من', path: '/player/reservations' },
-    { id: 'player-profile', title: 'پروفایل', path: '/player/profile' },
-  ],
-  owner: [
-    {
-      id: 'owner-home',
-      title: 'داشبورد صاحب زمین',
-      path: '/owner',
-      fullPageHint: '/login?redirect=%2Fowner',
-    },
-    { id: 'owner-res', title: 'رزروها', path: '/owner/reservations' },
-    { id: 'owner-slots', title: 'سانس‌ها', path: '/owner/slots' },
-  ],
-  admin: [
-    {
-      id: 'admin-home',
-      title: 'داشبورد مالک',
-      path: '/admin',
-      fullPageHint: '/login?redirect=%2Fadmin',
-    },
-    { id: 'admin-pitches', title: 'زمین‌ها', path: '/admin/pitches' },
-    { id: 'admin-res', title: 'رزروها', path: '/admin/reservations' },
-  ],
+  public: PUBLIC_PAGES,
+  player: pagesFromNav(PLAYER_NAV),
+  owner: pagesFromNav(OWNER_NAV),
+  admin: pagesFromNav(ADMIN_NAV),
 };
 
 const ZONE_LABEL: Record<Zone, string> = {
@@ -69,25 +77,20 @@ export function LiveResponsivePreview() {
   const [zone, setZone] = useState<Zone>('public');
   const [pageIndex, setPageIndex] = useState(0);
   const [deviceIndex, setDeviceIndex] = useState(1);
-  const [layout, setLayout] = useState<LayoutMode>('single');
+  const [layout, setLayout] = useState<LayoutMode>('mosaic');
   const [iframeKey, setIframeKey] = useState(0);
 
   const pages = PAGES_BY_ZONE[zone];
   const page = pages[pageIndex] ?? pages[0];
   const device = DEVICES[deviceIndex];
-  const isPanel = zone !== 'public';
 
   useEffect(() => {
     setPageIndex(0);
-    if (zone !== 'public') setLayout('single');
   }, [zone]);
 
   const reload = useCallback(() => setIframeKey((k) => k + 1), []);
 
-  const fullPageLogin = useMemo(() => {
-    if (!page.fullPageHint) return null;
-    return page.fullPageHint;
-  }, [page.fullPageHint]);
+  const openPath = useMemo(() => page.path, [page.path]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -98,38 +101,61 @@ export function LiveResponsivePreview() {
     return () => window.removeEventListener('keydown', onKey);
   }, [pages.length]);
 
+  function renderFrame(d: (typeof DEVICES)[number], src: string, title: string) {
+    return (
+      <div key={d.id} className="responsive-live-unit">
+        <p className="responsive-live-unit-label">
+          {d.label} · {d.width}×{d.height}
+        </p>
+        <div
+          className="responsive-live-frame"
+          style={{ width: d.width, height: Math.min(d.height, 720) }}
+        >
+          <iframe
+            key={`${page.id}-${d.id}-${iframeKey}`}
+            title={title}
+            src={src}
+            className="responsive-live-iframe"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="responsive-live-root">
       <header className="responsive-live-top">
         <div>
           <p className="responsive-live-kicker">پیش‌نمایش زنده · {ZONE_LABEL[zone]}</p>
           <h1 className="responsive-live-title">{page.title}</h1>
-          <p className="responsive-live-meta">{page.path}</p>
+          <p className="responsive-live-meta">
+            {page.path.replace('uiPreview=1&', '').replace('&uiPreview=1', '').replace('?uiPreview=1', '')}
+            {' · '}
+            پنل‌ها با ورود نمایشی خودکار (بدون OTP)
+          </p>
         </div>
         <div className="responsive-live-toolbar">
-          {!isPanel && (
-            <div className="responsive-live-mode">
-              <button
-                type="button"
-                className={layout === 'mosaic' ? 'active' : ''}
-                onClick={() => setLayout('mosaic')}
-              >
-                همه دستگاه‌ها
-              </button>
-              <button
-                type="button"
-                className={layout === 'single' ? 'active' : ''}
-                onClick={() => setLayout('single')}
-              >
-                یک دستگاه
-              </button>
-            </div>
-          )}
+          <div className="responsive-live-mode">
+            <button
+              type="button"
+              className={layout === 'mosaic' ? 'active' : ''}
+              onClick={() => setLayout('mosaic')}
+            >
+              همه دستگاه‌ها
+            </button>
+            <button
+              type="button"
+              className={layout === 'single' ? 'active' : ''}
+              onClick={() => setLayout('single')}
+            >
+              یک دستگاه
+            </button>
+          </div>
           <button type="button" className="btn btn-secondary btn-sm" onClick={reload}>
             بارگذاری مجدد
           </button>
-          <Link href={page.path} className="btn btn-primary btn-sm" target="_blank" rel="noreferrer">
-            باز در تب کامل (تایپ OTP)
+          <Link href={openPath} className="btn btn-primary btn-sm" target="_blank" rel="noreferrer">
+            باز در تب جدید
           </Link>
         </div>
       </header>
@@ -144,27 +170,17 @@ export function LiveResponsivePreview() {
             className={zone === z ? 'chip active' : 'chip'}
             onClick={() => setZone(z)}
           >
-            {ZONE_LABEL[z]}
+            {ZONE_LABEL[z]} ({PAGES_BY_ZONE[z].length})
           </button>
         ))}
       </div>
 
-      {isPanel && (
-        <div className="responsive-live-panel-notice panel">
-          <p>
-            برای <strong>ورود و تایپ OTP/کد</strong> حتماً «باز در تب کامل» را بزنید — داخل
-            iframe چندقابی ممکن است کیبورد درست فوکوس نشود.
-          </p>
-          {fullPageLogin && (
-            <Link href={fullPageLogin} className="btn btn-secondary btn-sm" target="_blank" rel="noreferrer">
-              ورود دمو → {ZONE_LABEL[zone]}
-            </Link>
-          )}
-        </div>
-      )}
-
       <div className="responsive-live-body">
-        <aside className="responsive-live-sidebar" aria-label="صفحات">
+        <CollapsibleAsideList
+          className="responsive-live-sidebar"
+          title={`صفحات · ${ZONE_LABEL[zone]}`}
+          summary={page.title}
+        >
           <p className="responsive-live-sidebar-title">{ZONE_LABEL[zone]}</p>
           <ul>
             {pages.map((p, i) => (
@@ -181,7 +197,7 @@ export function LiveResponsivePreview() {
           </ul>
           {layout === 'single' && (
             <>
-              <p className="responsive-live-sidebar-title">دستگاه</p>
+              <p className="responsive-live-sidebar-title">دستگاه · {device.label}</p>
               <ul>
                 {DEVICES.map((d, i) => (
                   <li key={d.id}>
@@ -200,29 +216,14 @@ export function LiveResponsivePreview() {
               </ul>
             </>
           )}
-        </aside>
+        </CollapsibleAsideList>
 
         <section className="responsive-live-stage">
-          {layout === 'mosaic' && !isPanel ? (
+          {layout === 'mosaic' ? (
             <div className="responsive-live-mosaic">
-              {DEVICES.map((d) => (
-                <div key={d.id} className="responsive-live-unit">
-                  <p className="responsive-live-unit-label">
-                    {d.label} · {d.width}×{d.height}
-                  </p>
-                  <div
-                    className="responsive-live-frame"
-                    style={{ width: d.width, height: Math.min(d.height, 720) }}
-                  >
-                    <iframe
-                      key={`${page.id}-${d.id}-${iframeKey}`}
-                      title={`${page.title} — ${d.label}`}
-                      src={page.path}
-                      className="responsive-live-iframe"
-                    />
-                  </div>
-                </div>
-              ))}
+              {DEVICES.map((d) =>
+                renderFrame(d, page.path, `${page.title} — ${d.label}`),
+              )}
             </div>
           ) : (
             <div className="responsive-live-single">

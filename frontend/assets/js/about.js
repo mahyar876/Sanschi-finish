@@ -90,7 +90,7 @@ async function sendContact() {
 
 ${msg}`,
     );
-    window.location.href = `mailto:info@sanschi.ir?subject=${encodeURIComponent(subject)}&body=${mailBody}`;
+    window.location.href = `mailto:info@sanschii.ir?subject=${encodeURIComponent(subject)}&body=${mailBody}`;
 
     btn.classList.remove('loading');
     btn.disabled = false;

@@ -1,4 +1,4 @@
-import { gregorianToJalali } from '@/lib/jalali';
+import { gregorianToJalali, numFa } from '@/lib/jalali';
 
 const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
 
@@ -6,6 +6,50 @@ export const SLOT_START_GRACE_MS = 10 * 60 * 1000;
 
 function toAsciiDigits(str: string): string {
   return String(str).replace(/[۰-۹]/g, (c) => String(FA_DIGITS.indexOf(c)));
+}
+
+const DEFAULT_SLOT_MINUTES = 90;
+
+function parseHmPart(part: string): [number, number] | null {
+  const m = toAsciiDigits(part)
+    .trim()
+    .match(/(\d{1,2})\s*:?\s*(\d{2})?/);
+  if (!m) return null;
+  return [parseInt(m[1], 10), parseInt(m[2] || '0', 10)];
+}
+
+function formatSlotClock(h: number, m: number): string {
+  if (m === 30) return `${numFa(h)} و نیم`;
+  if (m === 0) return `${numFa(h)}`;
+  return `${numFa(h)}:${numFa(String(m).padStart(2, '0'))}`;
+}
+
+/** نمایش سانس برای کاربر — «۱۸ تا ۱۹ و نیم» یا بازهٔ کامل */
+export function displaySlotTime(raw: string): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed || trimmed === '—') return trimmed || '—';
+
+  const norm = toAsciiDigits(trimmed).replace(/[–—−]/g, '-');
+  const chunks = norm
+    .split('-')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (chunks.length >= 2) {
+    const start = parseHmPart(chunks[0]);
+    const end = parseHmPart(chunks[1]);
+    if (start && end) {
+      return `${formatSlotClock(start[0], start[1])} تا ${formatSlotClock(end[0], end[1])}`;
+    }
+  }
+
+  const start = parseHmPart(chunks[0] || norm);
+  if (!start) return trimmed;
+
+  const totalMin = start[0] * 60 + start[1] + DEFAULT_SLOT_MINUTES;
+  const endH = Math.floor(totalMin / 60) % 24;
+  const endM = totalMin % 60;
+  return `${formatSlotClock(start[0], start[1])} تا ${formatSlotClock(endH, endM)}`;
 }
 
 function parseJalaliApiDate(dateStr: string): [number, number, number] {
@@ -111,4 +155,43 @@ export function hoursUntilSlotStart(
 export function jalaliApiDateFromDate(d: Date): string {
   const j = gregorianToJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
   return `${j[0]}/${String(j[1]).padStart(2, '0')}/${String(j[2]).padStart(2, '0')}`;
+}
+
+export function startOfLocalDayFrom(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+}
+
+export function addLocalDays(day: Date, days: number): Date {
+  const out = startOfLocalDayFrom(day);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+export function isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** حداقل یک سانس هنوز قابل رزرو (شروع + ۱۰ دقیقه grace نگذشته) */
+export function dayHasRemainingBookableSlots(
+  day: Date,
+  slotTimes: string[],
+  now: Date = new Date(),
+): boolean {
+  if (!slotTimes.length) return true;
+  const dateStr = jalaliApiDateFromDate(day);
+  return slotTimes.some((time) => !isSlotPastForBooking(dateStr, time, now));
+}
+
+/** امروز اگر همه سانس‌ها گذشته‌اند → فردا */
+export function defaultReserveLocalDay(
+  slotTimes: string[],
+  now: Date = new Date(),
+): Date {
+  const today = startOfLocalDayFrom(now);
+  if (dayHasRemainingBookableSlots(today, slotTimes, now)) return today;
+  return addLocalDays(today, 1);
 }
