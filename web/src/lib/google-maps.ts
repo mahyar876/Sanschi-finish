@@ -14,7 +14,8 @@ export function googleMapsPlaceUrl(lat: number, lng: number, label?: string): st
 
 /** مسیریابی (کاربر فعلی → مقصد) — بدون نیاز به API key */
 export function googleMapsDirectionsUrl(lat: number, lng: number): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  const destination = encodeURIComponent(`${lat},${lng}`);
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
 }
 
 /** embed نقشه — با کلید Embed API یا fallback بدون کلید */
@@ -28,7 +29,7 @@ export function googleMapsEmbedSrc(lat: number, lng: number, zoom = 16): string 
 
 export type LatLngCoords = { lat: number; lng: number };
 
-export function parseCoords(lat?: number, lng?: number): LatLngCoords | null {
+export function parseCoords(lat?: number | null, lng?: number | null): LatLngCoords | null {
   if (
     typeof lat !== 'number' ||
     typeof lng !== 'number' ||
@@ -44,6 +45,6 @@ export function parseCoords(lat?: number, lng?: number): LatLngCoords | null {
   return { lat, lng };
 }
 
-export function isValidCoord(lat?: number, lng?: number): boolean {
+export function isValidCoord(lat?: number | null, lng?: number | null): boolean {
   return parseCoords(lat, lng) !== null;
 }

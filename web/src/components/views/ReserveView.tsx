@@ -34,6 +34,21 @@ import {
   isSameLocalDay,
 } from '@/lib/slot-time';
 import { WomenBookingNotice } from '@/components/WomenBookingNotice';
+import { PitchRulesDisclosure } from '@/components/PitchRulesDisclosure';
+import { FavoritePitchButton } from '@/components/FavoritePitchButton';
+import dynamic from 'next/dynamic';
+
+const VenueLocationMap = dynamic(
+  () => import('@/components/map/VenueLocationMap').then((m) => m.VenueLocationMap),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="venue-map-section panel">
+        <p className="muted-sm">در حال بارگذاری نقشه…</p>
+      </section>
+    ),
+  },
+);
 
 type Slot = {
   slotIndex: number;
@@ -750,6 +765,7 @@ export function ReserveView() {
                 >
                   <span className="reserve-pitch-card-media">
                     <VenueImage src={v.image} category={v.category} alt="" fill sizes="120px" />
+                    <FavoritePitchButton pitchId={v.pitchId} compact />
                   </span>
                   <span className="reserve-pitch-card-body">
                     <strong>{v.name}</strong>
@@ -769,11 +785,15 @@ export function ReserveView() {
                 <p className="reserve-venue-link muted-sm">
                   {selectedVenue.address}، {selectedVenue.city}
                 </p>
-                {selectedVenue.rulesText ? (
-                  <p className="muted-sm" style={{ whiteSpace: 'pre-wrap' }}>
-                    {selectedVenue.rulesText}
-                  </p>
-                ) : null}
+                <PitchRulesDisclosure text={selectedVenue.rulesText} />
+                <VenueLocationMap
+                  key={selectedVenue.pitchId}
+                  lat={selectedVenue.lat}
+                  lng={selectedVenue.lng}
+                  title={selectedVenue.name}
+                  address={selectedVenue.address}
+                  city={selectedVenue.city}
+                />
               </>
             )}
           </section>

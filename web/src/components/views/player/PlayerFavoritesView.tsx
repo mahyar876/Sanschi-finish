@@ -5,16 +5,35 @@ import { useEffect, useState } from 'react';
 import { DataSection, PageIntro } from '@/components/dashboard/DashboardPageBlocks';
 import { VenueCard } from '@/components/VenueCard';
 import { fetchCatalog, type CatalogVenue } from '@/lib/catalog';
-import { loadFavoritePitchIds } from '@/lib/favorites';
+import {
+  loadFavoritePitchIds,
+  subscribeFavorites,
+  syncFavoritesFromServer,
+} from '@/lib/favorites';
 
 export function PlayerFavoritesView() {
   const [venues, setVenues] = useState<CatalogVenue[]>([]);
 
   useEffect(() => {
-    const ids = new Set(loadFavoritePitchIds());
-    void fetchCatalog().then(({ items }) => {
+    let cancelled = false;
+
+    async function refresh() {
+      await syncFavoritesFromServer();
+      if (cancelled) return;
+      const ids = new Set(loadFavoritePitchIds());
+      const { items } = await fetchCatalog();
+      if (cancelled) return;
       setVenues(items.filter((v) => ids.has(v.pitchId)));
+    }
+
+    void refresh();
+    const unsub = subscribeFavorites(() => {
+      void refresh();
     });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
 
   return (
@@ -26,8 +45,10 @@ export function PlayerFavoritesView() {
       <DataSection title="لیست">
         {venues.length === 0 ? (
           <p className="subtitle" style={{ margin: 0 }}>
-            موردی نیست. از <Link href="/gallery">گالری زمین‌ها</Link> مجموعه را
-            انتخاب کنید و رزرو کنید.
+            موردی نیست. در{' '}
+            <Link href="/gallery">گالری زمین‌ها</Link> یا{' '}
+            <Link href="/reserve">رزرو</Link> روی{' '}
+            <span aria-hidden>♥</span> کنار هر مجموعه بزنید (بعد از ورود).
           </p>
         ) : (
           <div className="venue-grid">

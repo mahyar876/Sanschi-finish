@@ -1,4 +1,6 @@
 const { enrichDefaultPitch } = require('./enrichDefaultPitch');
+const { matchPitchNameToCoords } = require('./pitchVenueMatch');
+const { isValidCoordPair } = require('./pitchCoords');
 
 function pitchKey(name, address) {
   return `${String(name || '').trim()}|${String(address || '').trim()}`;
@@ -14,7 +16,7 @@ async function syncDefaultPitchEnrichment(Pitch, defaultPitches) {
   );
   const rows = await Pitch.find(
     {},
-    'name address amenities maxCapacity womenBookingAllowed rulesText',
+    'name address lat lng amenities maxCapacity womenBookingAllowed rulesText',
   ).lean();
   let updated = 0;
   for (const row of rows) {
@@ -35,6 +37,16 @@ async function syncDefaultPitchEnrichment(Pitch, defaultPitches) {
     }
     if (!String(row.rulesText || '').trim() && String(src.rulesText || '').trim()) {
       patch.rulesText = src.rulesText;
+    }
+    if (!isValidCoordPair(row.lat, row.lng)) {
+      const fromName = matchPitchNameToCoords(row.name);
+      if (fromName) {
+        patch.lat = fromName.lat;
+        patch.lng = fromName.lng;
+      } else if (isValidCoordPair(src.lat, src.lng)) {
+        patch.lat = src.lat;
+        patch.lng = src.lng;
+      }
     }
     if (Object.keys(patch).length) {
       await Pitch.updateOne({ _id: row._id }, { $set: patch });

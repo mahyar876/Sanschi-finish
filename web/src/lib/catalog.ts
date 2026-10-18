@@ -8,6 +8,7 @@ import { resolveCatalogImage } from '@/lib/venue-images';
 import { inferTehranZone, type TehranZone } from '@/lib/tehran-zones';
 import { normalizeAmenityIds, type PitchAmenityId } from '@/lib/pitch-amenities';
 import { enrichPitchCatalogFields } from '@/lib/pitch-catalog-enrichment';
+import { matchPitchNameToCoords } from '@/lib/pitch-venue-coords';
 
 export type CatalogVenue = {
   pitchId: string;
@@ -71,8 +72,21 @@ function venueForPitch(p: Pitch): Venue | undefined {
   return VENUES.find((v) => v.id === vid);
 }
 
+function venueForCatalog(p: Pitch): Venue | undefined {
+  const demo = venueForPitch(p);
+  if (demo) return demo;
+  const name = (p.name || '').trim();
+  if (!name) return undefined;
+  const exact = VENUES.find((v) => v.name.trim() === name);
+  if (exact) return exact;
+  const coords = matchPitchNameToCoords(name);
+  if (!coords) return undefined;
+  return VENUES.find((v) => v.lat === coords.lat && v.lng === coords.lng);
+}
+
 export function pitchToCatalog(p: Pitch, avail?: number): CatalogVenue {
-  const venue = venueForPitch(p);
+  const venue = venueForCatalog(p);
+  const coordsFallback = matchPitchNameToCoords(p.name || '');
   const slug =
     venue?.slug ||
     `${slugify(p.name)}-${p._id.replace(/[^a-zA-Z0-9]/g, '').slice(-6)}`;
@@ -124,8 +138,8 @@ export function pitchToCatalog(p: Pitch, avail?: number): CatalogVenue {
     seoDescription: p.desc || venue?.seoDescription || displayName,
     featured: venue?.featured,
     desc: p.desc || venue?.seoDescription,
-    lat: p.lat ?? venue?.lat,
-    lng: p.lng ?? venue?.lng,
+    lat: p.lat ?? venue?.lat ?? coordsFallback?.lat,
+    lng: p.lng ?? venue?.lng ?? coordsFallback?.lng,
     womenBookingAllowed: enriched.womenBookingAllowed,
     amenities: enriched.amenities,
     rulesText: enriched.rulesText,

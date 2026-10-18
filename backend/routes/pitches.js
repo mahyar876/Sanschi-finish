@@ -20,6 +20,10 @@ const {
   invalidateInflightPrefix,
 } = require('../lib/shortCache');
 const { pickPitchFields } = require('../lib/pitchAdminFields');
+const {
+  sanitizeCoordsInBody,
+  coordErrorResponse,
+} = require('../lib/pitchCoords');
 
 const CATALOG_CACHE_MS = parseInt(process.env.CATALOG_CACHE_MS || '45000', 10) || 45000;
 const FLASH_CACHE_MS = parseInt(process.env.FLASH_CACHE_MS || '45000', 10) || 45000;
@@ -493,7 +497,16 @@ router.get('/:id/slots', optionalAuth, async (req, res) => {
 // ─────────────────────────────────────
 router.post('/', adminSecret, async (req, res) => {
   try {
-    const fields = pickPitchFields(req.body);
+    let fields;
+    try {
+      fields = pickPitchFields(sanitizeCoordsInBody(req.body));
+    } catch (err) {
+      const r = coordErrorResponse(err, res);
+      if (r) return r;
+      throw err;
+    }
+    if (fields.lat === null) delete fields.lat;
+    if (fields.lng === null) delete fields.lng;
     if (fields.sortOrder === undefined) {
       fields.sortOrder = await Pitch.countDocuments();
     }
@@ -535,14 +548,23 @@ router.patch('/:id/reorder', adminSecret, async (req, res) => {
 // ─────────────────────────────────────
 router.patch('/:id', adminSecret, async (req, res) => {
   try {
-    const pitch = await Pitch.findByIdAndUpdate(
-      req.params.id,
-      pickPitchFields(req.body),
-      {
+    let patch;
+    try {
+      patch = pickPitchFields(sanitizeCoordsInBody(req.body));
+    } catch (err) {
+      const r = coordErrorResponse(err, res);
+      if (r) return r;
+      throw err;
+    }
+    if (patch.lat === null || patch.lng === null) {
+      patch.$unset = { ...(patch.$unset || {}), lat: '', lng: '' };
+      delete patch.lat;
+      delete patch.lng;
+    }
+    const pitch = await Pitch.findByIdAndUpdate(req.params.id, patch, {
       new: true,
       runValidators: true,
-      },
-    );
+    });
     if (!pitch)
       return res.status(404).json({ success: false, message: 'زمین پیدا نشد' });
     bustPublicPitchCaches();

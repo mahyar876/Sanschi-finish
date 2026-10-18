@@ -11,6 +11,7 @@ import {
 } from '@/lib/dashboard-nav';
 import { ownerRedirectFromPlayerPath } from '@/lib/account-home';
 import { apiFetch, ApiError } from '@/lib/fetch-api';
+import { clearFavoritesMemoryCache } from '@/lib/favorites';
 import { clearSession, getToken, getUser, setSession, type SessionUser } from '@/lib/session';
 import { demoLoginAs } from '@/lib/demo';
 import { isUiPreviewClient, previewRoleForPathname } from '@/lib/ui-preview';
@@ -70,6 +71,7 @@ export function DashboardAppShell({
         } catch (e) {
           if (e instanceof ApiError && e.status === 401) {
             clearSession();
+            clearFavoritesMemoryCache();
             router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
             return;
           }
@@ -157,6 +159,7 @@ export function DashboardAppShell({
 
   function logout() {
     clearSession();
+    clearFavoritesMemoryCache();
     router.push('/login');
   }
 

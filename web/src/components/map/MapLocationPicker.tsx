@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_MAP_CENTER, parseCoords } from '@/lib/google-maps';
+import { attachStandardTileLayer } from '@/lib/map-tiles';
 
 type Props = {
-  lat?: number;
-  lng?: number;
-  onChange: (coords: { lat: number; lng: number } | { lat: undefined; lng: undefined }) => void;
+  lat?: number | null;
+  lng?: number | null;
+  onChange: (
+    coords: { lat: number; lng: number } | { lat: null; lng: null },
+  ) => void;
   addressHint?: string;
   onAddressResolved?: (label: string) => void;
 };
@@ -94,10 +97,7 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
         [initial.lat, initial.lng],
         parseCoords(lat, lng) ? 16 : 12,
       );
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
-        maxZoom: 19,
-      }).addTo(map);
+      attachStandardTileLayer(L, map);
 
       map.on('click', (e: import('leaflet').LeafletMouseEvent) => {
         applyUserPosition(L, { lat: e.latlng.lat, lng: e.latlng.lng });
@@ -233,7 +233,7 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
             onChange={(e) => {
               const v = e.target.value;
               if (!v) {
-                onChangeRef.current({ lat: undefined, lng: undefined });
+                onChangeRef.current({ lat: null, lng: null });
                 return;
               }
               onChangeRef.current({
@@ -252,7 +252,7 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
             onChange={(e) => {
               const v = e.target.value;
               if (!v) {
-                onChangeRef.current({ lat: undefined, lng: undefined });
+                onChangeRef.current({ lat: null, lng: null });
                 return;
               }
               onChangeRef.current({
@@ -267,7 +267,7 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
         <button
           type="button"
           className="btn btn-ghost btn-sm"
-          onClick={() => onChangeRef.current({ lat: undefined, lng: undefined })}
+          onClick={() => onChangeRef.current({ lat: null, lng: null })}
         >
           حذف موقعیت
         </button>

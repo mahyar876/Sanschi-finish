@@ -22,8 +22,8 @@ export type Pitch = {
   womenBookingAllowed?: boolean | null;
   commissionAmount: number;
   slots: PitchSlot[];
-  lat?: number;
-  lng?: number;
+  lat?: number | null;
+  lng?: number | null;
   sortOrder?: number;
   lastMinuteEnabled?: boolean;
   /** درصد تخفیف وقتی ≤۱ ساعت تا شروع مانده (null = پیش‌فرض پلتفرم) */

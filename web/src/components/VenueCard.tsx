@@ -5,6 +5,7 @@ import { CATEGORY_LABEL } from '@/data/venues';
 import type { CatalogVenue } from '@/lib/catalog';
 import { pitchSizeLabel, priceFa } from '@/lib/format';
 import { tehranZoneLabel } from '@/lib/tehran-zones';
+import { FavoritePitchButton } from '@/components/FavoritePitchButton';
 type Props = {
   venue: CatalogVenue;
   stagger?: number;
@@ -35,20 +36,23 @@ export function VenueCard({
   return (
     <Reveal delay={stagger} className="venue-card-wrap">
       <article className="venue-card">
-        <Link href={reserveLink} className="venue-card-media">
-          <VenueImage
-            src={venue.image}
-            category={venue.category}
-            alt=""
-            fill
-            sizes={
-              imageSizes ?? '(max-width: 768px) 100vw, 33vw'
-            }
-            className="venue-card-img"
-          />
-          <span className="venue-badge">{CATEGORY_LABEL[venue.category]}</span>
-          {venue.featured && <span className="venue-badge featured">پیشنهادی</span>}
-        </Link>
+        <div className="venue-card-media">
+          <Link href={reserveLink} className="venue-card-media-link">
+            <VenueImage
+              src={venue.image}
+              category={venue.category}
+              alt=""
+              fill
+              sizes={
+                imageSizes ?? '(max-width: 768px) 100vw, 33vw'
+              }
+              className="venue-card-img"
+            />
+            <span className="venue-badge">{CATEGORY_LABEL[venue.category]}</span>
+            {venue.featured && <span className="venue-badge featured">پیشنهادی</span>}
+          </Link>
+          <FavoritePitchButton pitchId={venue.pitchId} />
+        </div>
         <div className="venue-card-body">
           <h2 className="venue-card-title">
             <Link href={reserveLink}>{venue.name}</Link>

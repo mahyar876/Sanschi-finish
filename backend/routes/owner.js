@@ -13,6 +13,11 @@ const {
   legacyStatusFromBooking,
 } = require('../services/slotService');
 const { notifyCancelled } = require('../services/notify');
+const {
+  sanitizeCoordsInBody,
+  applyCoordsPatchToPitch,
+  coordErrorResponse,
+} = require('../lib/pitchCoords');
 
 async function loadOwnedPitch(req, res, next) {
   try {
@@ -54,6 +59,14 @@ router.get('/pitches', protect, async (req, res) => {
 
 router.patch('/pitches/:id', protect, loadOwnedPitch, async (req, res) => {
   try {
+    let body;
+    try {
+      body = sanitizeCoordsInBody(req.body);
+    } catch (err) {
+      const r = coordErrorResponse(err, res);
+      if (r) return r;
+      throw err;
+    }
     const allowed = [
       'name',
       'type',
@@ -79,8 +92,10 @@ router.patch('/pitches/:id', protect, loadOwnedPitch, async (req, res) => {
       'womenBookingAllowed',
     ];
     allowed.forEach((key) => {
-      if (req.body[key] !== undefined) req.pitch[key] = req.body[key];
+      if (key === 'lat' || key === 'lng') return;
+      if (body[key] !== undefined) req.pitch[key] = body[key];
     });
+    applyCoordsPatchToPitch(req.pitch, body);
 
     await req.pitch.save();
     res.json({ success: true, pitch: req.pitch });

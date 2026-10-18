@@ -36,6 +36,7 @@ export function OwnerPitchEditor({ pitchId, onSaved }: Props) {
   const [pitch, setPitch] = useState<Pitch | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState(false);
   const [lm60Text, setLm60Text] = useState('');
   const [lm30Text, setLm30Text] = useState('');
 
@@ -65,6 +66,7 @@ export function OwnerPitchEditor({ pitchId, onSaved }: Props) {
 
   async function persistPatch(base: Pitch, body: Partial<Pitch>, okMsg = '✓ ذخیره شد') {
     setMsg('');
+    setSaving(true);
     const demoSession = isDemoFrontend() || getToken()?.startsWith('demo-token');
     try {
       if (demoSession) {
@@ -83,6 +85,8 @@ export function OwnerPitchEditor({ pitchId, onSaved }: Props) {
       onSaved?.();
     } catch {
       setMsg('ذخیره نشد — دوباره تلاش کنید');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -96,8 +100,8 @@ export function OwnerPitchEditor({ pitchId, onSaved }: Props) {
       tags: pitch.tags,
       isActive: pitch.isActive,
       image: pitch.image,
-      lat: pitch.lat,
-      lng: pitch.lng,
+      lat: pitch.lat ?? null,
+      lng: pitch.lng ?? null,
       lastMinuteEnabled: pitch.lastMinuteEnabled,
       lastMinuteDiscount60: pitch.lastMinuteDiscount60,
       lastMinuteDiscount30: pitch.lastMinuteDiscount30,
@@ -310,13 +314,18 @@ export function OwnerPitchEditor({ pitchId, onSaved }: Props) {
           onChange={(coords) =>
             setPitch({
               ...pitch,
-              lat: coords.lat,
-              lng: coords.lng,
+              lat: coords.lat ?? null,
+              lng: coords.lng ?? null,
             })
           }
         />
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => void save()}>
-          ذخیره موقعیت
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={saving}
+          onClick={() => void save()}
+        >
+          {saving ? 'در حال ذخیره…' : 'ذخیره موقعیت'}
         </button>
       </ActionsPanel>
       <ActionsPanel title="سانس‌ها">

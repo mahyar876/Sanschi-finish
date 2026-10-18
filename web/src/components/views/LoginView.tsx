@@ -12,6 +12,7 @@ import {
   SITE_OWNER_PHONE,
 } from '@/lib/demo';
 import { pathAfterAuth } from '@/lib/account-home';
+import { applyPendingFavoriteAfterLogin } from '@/lib/favorites';
 import { setSession, type SessionUser } from '@/lib/session';
 import { numFa } from '@/lib/jalali';
 
@@ -45,7 +46,8 @@ export function LoginView() {
   const [otpDevHint, setOtpDevHint] = useState('');
   const [loading, setLoading] = useState(false);
 
-  function goAfterAuth() {
+  async function goAfterAuth() {
+    await applyPendingFavoriteAfterLogin();
     router.push(pathAfterAuth(redirectParam));
   }
 

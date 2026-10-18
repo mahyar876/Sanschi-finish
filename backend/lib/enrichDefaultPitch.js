@@ -1,6 +1,7 @@
 /** امکانات و فیلدهای فیلتر گالری — هم‌خوان با web/src/lib/pitch-catalog-enrichment.ts */
 
 const { buildDefaultPitchRules } = require('./defaultPitchRules');
+const { matchPitchNameToCoords } = require('./pitchVenueMatch');
 
 const TAG_AMENITY = [
   [/پارکینگ/i, 'parking'],
@@ -96,6 +97,9 @@ function enrichDefaultPitch(p) {
   const rulesTrim = typeof p.rulesText === 'string' ? p.rulesText.trim() : '';
   const rulesText = rulesTrim || buildDefaultPitchRules(type, size);
 
+  const coords =
+    p.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng } : matchPitchNameToCoords(p.name);
+
   return {
     ...p,
     amenities,
@@ -105,6 +109,7 @@ function enrichDefaultPitch(p) {
         ? p.womenBookingAllowed
         : womenBookingFromHash(h),
     rulesText,
+    ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
   };
 }
 

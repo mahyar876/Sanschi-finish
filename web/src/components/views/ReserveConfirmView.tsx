@@ -16,6 +16,7 @@ import { getToken } from '@/lib/session';
 import { priceFa } from '@/lib/format';
 import { displaySlotTime } from '@/lib/slot-time';
 import { WomenBookingNotice } from '@/components/WomenBookingNotice';
+import { PitchRulesDisclosure } from '@/components/PitchRulesDisclosure';
 import type { WomenBookingAllowed } from '@/lib/women-booking';
 import {
   GroupSplitCalculator,
@@ -350,19 +351,18 @@ export function ReserveConfirmView() {
         <p className="muted-sm" style={{ marginTop: '0.75rem' }}>
           کد تخفیف (مثلاً از بازی پنالتی) در مرحله پرداخت قابل اعمال است.
         </p>
-        <ul className="notice" style={{ marginTop: '1rem', paddingRight: '1.1rem' }}>
-          {policyLines.length
-            ? policyLines.map((line) => <li key={line}>{line}</li>)
-            : 'قوانین کنسلی پس از اتصال به سرور نمایش داده می‌شود.'}
-        </ul>
-        {pitch?.rulesText ? (
-          <div style={{ marginTop: '0.75rem' }}>
-            <h3 className="h6">قوانین این مجموعه</h3>
-            <p className="muted-sm" style={{ whiteSpace: 'pre-wrap' }}>
-              {pitch.rulesText}
-            </p>
-          </div>
-        ) : null}
+        {policyLines.length > 0 ? (
+          <PitchRulesDisclosure
+            title="قوانین کنسلی و استرداد"
+            lines={policyLines}
+            className="pitch-rules-disclosure--spaced"
+          />
+        ) : (
+          <p className="muted-sm" style={{ marginTop: '1rem' }}>
+            قوانین کنسلی پس از اتصال به سرور نمایش داده می‌شود.
+          </p>
+        )}
+        <PitchRulesDisclosure text={pitch?.rulesText} className="pitch-rules-disclosure--spaced" />
         {pitch?.desc && (
           <p className="muted-sm" style={{ marginTop: '0.75rem' }}>
             {pitch.desc}

@@ -20,8 +20,8 @@ const pitchSchema = new mongoose.Schema({
   size: { type: Number, enum: [5, 7, 11], required: true },
   price: { type: Number, required: true }, // قیمت پایه (نمایشی روی کارت)
   address: { type: String, required: true },
-  lat: { type: Number },
-  lng: { type: Number },
+  lat: { type: Number, min: -90, max: 90 },
+  lng: { type: Number, min: -180, max: 180 },
   desc: { type: String },
   /** قوانین مجموعه — متن آزاد (هر خط یک بند) */
   rulesText: { type: String, default: '' },

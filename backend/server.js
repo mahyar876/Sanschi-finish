@@ -103,6 +103,7 @@ app.use('/api/wallet', require('./routes/wallet'));
 app.use('/api/owner-applications', require('./routes/ownerApplications'));
 app.use('/api/assistant', require('./routes/assistant'));
 app.use('/api/support', require('./routes/support'));
+app.use('/api/favorites', require('./routes/favorites'));
 
 // ── HEALTH ──
 app.get('/api/health', (req, res) => {

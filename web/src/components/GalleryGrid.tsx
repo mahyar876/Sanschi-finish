@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import type { VenueCategory } from '@/data/venues';
 import { fetchCatalog, type CatalogVenue } from '@/lib/catalog';
@@ -22,6 +23,7 @@ import {
   catalogMatchesSlotPeriods,
   type SlotPeriodFilter,
 } from '@/lib/gallery-filters';
+import { parseCoords } from '@/lib/google-maps';
 
 type Filter = 'all' | VenueCategory;
 
@@ -46,6 +48,20 @@ function resolveZone(v: CatalogVenue): TehranZone {
   return v.zone ?? inferTehranZone(v.address, v.lng);
 }
 
+const GalleryVenuesMap = dynamic(
+  () => import('@/components/map/GalleryVenuesMap').then((m) => m.GalleryVenuesMap),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="gallery-map-section panel">
+        <p className="muted-sm">در حال بارگذاری نقشه…</p>
+      </section>
+    ),
+  },
+);
+
+type GalleryView = 'grid' | 'map';
+
 export function GalleryGrid() {
   const [items, setItems] = useState<CatalogVenue[]>([]);
   const [live, setLive] = useState(false);
@@ -55,6 +71,8 @@ export function GalleryGrid() {
   const [sidebarFilters, setSidebarFilters] = useState<GallerySidebarFilters>(
     EMPTY_GALLERY_SIDEBAR_FILTERS,
   );
+  const [view, setView] = useState<GalleryView>('grid');
+  const [mapSelectedPitchId, setMapSelectedPitchId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchCatalog().then(({ items: list, live: fromApi }) => {
@@ -86,6 +104,22 @@ export function GalleryGrid() {
     return rows;
   }, [items, filter, zone, sort, sidebarFilters]);
 
+  const mappableCount = useMemo(
+    () => list.filter((v) => parseCoords(v.lat, v.lng) !== null).length,
+    [list],
+  );
+
+  useEffect(() => {
+    if (view !== 'map') return;
+    if (!list.length) {
+      setMapSelectedPitchId(null);
+      return;
+    }
+    if (!mapSelectedPitchId || !list.some((v) => v.pitchId === mapSelectedPitchId)) {
+      setMapSelectedPitchId(list[0]!.pitchId);
+    }
+  }, [view, list, mapSelectedPitchId]);
+
   return (
     <>
       {!live && items.length > 0 && (
@@ -97,6 +131,30 @@ export function GalleryGrid() {
       <div className="gallery-layout">
         <div className="gallery-filters-top">
           <div className="gallery-filters">
+            <div className="gallery-filter-block">
+              <span className="gallery-filter-label">نمایش</span>
+              <div className="chips chip-scroll-wrap" role="tablist" aria-label="نمایش گالری">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === 'grid'}
+                  className={view === 'grid' ? 'chip active' : 'chip'}
+                  onClick={() => setView('grid')}
+                >
+                  لیست کارت‌ها
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === 'map'}
+                  className={view === 'map' ? 'chip active' : 'chip'}
+                  onClick={() => setView('map')}
+                >
+                  نقشه تهران
+                </button>
+              </div>
+            </div>
+
             <div className="gallery-filter-block">
               <span className="gallery-filter-label">نوع مجموعه</span>
               <div className="chips chip-scroll-wrap" role="tablist" aria-label="فیلتر نوع زمین">
@@ -218,12 +276,28 @@ export function GalleryGrid() {
               <p>با این فیلترها موردی پیدا نشد. فیلترها را عوض کنید یا «همه» را انتخاب کنید.</p>
             )}
           </div>
+        ) : view === 'map' ? (
+          <GalleryVenuesMap
+            venues={list}
+            selectedPitchId={mapSelectedPitchId}
+            onSelectPitchId={setMapSelectedPitchId}
+          />
         ) : (
-          <div className="venue-grid">
-            {list.map((v) => (
-              <VenueCard key={v.pitchId} venue={v} />
-            ))}
-          </div>
+          <>
+            {mappableCount > 0 ? (
+              <GalleryVenuesMap
+                venues={list}
+                compact
+                selectedPitchId={mapSelectedPitchId}
+                onSelectPitchId={setMapSelectedPitchId}
+              />
+            ) : null}
+            <div className="venue-grid">
+              {list.map((v) => (
+                <VenueCard key={v.pitchId} venue={v} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </>

@@ -15,12 +15,14 @@ import { PitchImageUpload } from '@/components/form/PitchImageUpload';
 import { WomenBookingSelect } from '@/components/form/WomenBookingSelect';
 import { AmenityChecklist } from '@/components/form/AmenityChecklist';
 import { normalizeAmenityIds, type PitchAmenityId } from '@/lib/pitch-amenities';
+import { isValidCoord } from '@/lib/google-maps';
 
 const TYPE_LABEL = { futsal: 'فوتسال', grass: 'چمن' };
 
 export function AdminPitchesPage() {
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [query, setQuery] = useState('');
+  const [noLocationOnly, setNoLocationOnly] = useState(false);
   const [msg, setMsg] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -32,9 +34,11 @@ export function AdminPitchesPage() {
     load();
   }, [load]);
 
-  const filtered = pitches.filter(
-    (p) => !query.trim() || p.name.includes(query) || p.address.includes(query),
-  );
+  const filtered = pitches.filter((p) => {
+    if (noLocationOnly && isValidCoord(p.lat ?? undefined, p.lng ?? undefined)) return false;
+    if (!query.trim()) return true;
+    return p.name.includes(query) || p.address.includes(query);
+  });
 
   async function saveOne(p: Pitch) {
     setSaving(p._id);
@@ -92,11 +96,24 @@ export function AdminPitchesPage() {
           searchValue={query}
           onSearchChange={setQuery}
         />
+        <label className="checkbox-line" style={{ marginTop: '0.75rem' }}>
+          <input
+            type="checkbox"
+            checked={noLocationOnly}
+            onChange={(e) => setNoLocationOnly(e.target.checked)}
+          />
+          فقط زمین‌های بدون موقعیت روی نقشه
+        </label>
       </ActionsPanel>
       <DataSection title={`مجموعه‌ها (${filtered.length})`}>
         <div className="pitch-admin-grid">
           {filtered.map((p) => (
             <article key={p._id} className="pitch-admin-card panel">
+              {!isValidCoord(p.lat ?? undefined, p.lng ?? undefined) && (
+                <p className="form-msg venue-map-missing-badge" role="status">
+                  موقعیت روی نقشه ثبت نشده
+                </p>
+              )}
               <PitchImageUpload
                 image={p.image}
                 onImageChange={(image) => patchLocal(p._id, { image })}
@@ -186,7 +203,7 @@ export function AdminPitchesPage() {
                 lng={p.lng}
                 addressHint={p.address}
                 onChange={(coords) =>
-                  patchLocal(p._id, { lat: coords.lat, lng: coords.lng })
+                  patchLocal(p._id, { lat: coords.lat ?? null, lng: coords.lng ?? null })
                 }
               />
               <div className="field">

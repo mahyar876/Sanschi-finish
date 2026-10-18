@@ -102,8 +102,8 @@ export function AdminNewPitchPage() {
             lng={lng}
             addressHint={address}
             onChange={(coords) => {
-              setLat(coords.lat);
-              setLng(coords.lng);
+              setLat(coords.lat ?? undefined);
+              setLng(coords.lng ?? undefined);
             }}
           />
           <div className="field">

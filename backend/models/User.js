@@ -51,6 +51,12 @@ const userSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  favoritePitches: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Pitch',
+    },
+  ],
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -6,26 +6,28 @@ import {
   googleMapsPlaceUrl,
   parseCoords,
 } from '@/lib/google-maps';
+import { attachStandardTileLayer, getMapTileConfig } from '@/lib/map-tiles';
 
 type Props = {
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   title?: string;
   address?: string;
+  city?: string;
 };
 
-type LeafletModule = typeof import('leaflet');
-
 /** نقشهٔ موقعیت با OpenStreetMap — بدون وابستگی به Google Embed (در ایران پایدارتر) */
-export function VenueLocationMap({ lat, lng, title, address }: Props) {
+export function VenueLocationMap({ lat, lng, title, address, city }: Props) {
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import('leaflet').Map | null>(null);
   const label = title || address || 'موقعیت مجموعه';
   const coords = parseCoords(lat, lng);
 
   useEffect(() => {
-    if (!coords || !mapEl.current || mapRef.current) return;
+    if (!coords || !mapEl.current) return;
     let cancelled = false;
+    mapRef.current?.remove();
+    mapRef.current = null;
 
     void (async () => {
       const L = await import('leaflet');
@@ -46,15 +48,15 @@ export function VenueLocationMap({ lat, lng, title, address }: Props) {
         zoomControl: true,
       }).setView([coords.lat, coords.lng], 16);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
-        maxZoom: 19,
-      }).addTo(map);
+      attachStandardTileLayer(L, map);
 
       L.marker([coords.lat, coords.lng]).addTo(map);
       mapRef.current = map;
 
-      requestAnimationFrame(() => map.invalidateSize());
+      const fixSize = () => map.invalidateSize();
+      requestAnimationFrame(fixSize);
+      window.setTimeout(fixSize, 150);
+      window.setTimeout(fixSize, 500);
     })();
 
     return () => {
@@ -62,14 +64,30 @@ export function VenueLocationMap({ lat, lng, title, address }: Props) {
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [coords?.lat, coords?.lng]);
+  }, [lat, lng]);
 
-  if (!coords) return null;
+  const fullAddress =
+    address && city && !address.includes(city) ? `${address}، ${city}` : address || city;
+
+  if (!coords) {
+    return (
+      <section className="venue-map-section panel" aria-labelledby="venue-map-heading">
+        <h2 id="venue-map-heading">آدرس و مسیر</h2>
+        {fullAddress && <p className="venue-map-address">{fullAddress}</p>}
+        <p className="muted-sm venue-map-empty">
+          موقعیت دقیق این مجموعه هنوز روی نقشه ثبت نشده است. برای آدرس متنی با مجموعه تماس
+          بگیرید یا بعداً دوباره سر بزنید.
+        </p>
+      </section>
+    );
+  }
+
+  const tileCredit = getMapTileConfig().attribution;
 
   return (
-    <section className="venue-map-section">
-      <h2>موقعیت روی نقشه</h2>
-      {address && <p className="venue-map-address">{address}</p>}
+    <section className="venue-map-section panel" aria-labelledby="venue-map-heading">
+      <h2 id="venue-map-heading">آدرس و مسیر</h2>
+      {fullAddress && <p className="venue-map-address">{fullAddress}</p>}
       <div className="venue-map-embed-wrap venue-map-leaflet-wrap">
         <div ref={mapEl} className="venue-map-leaflet" role="img" aria-label={`نقشه ${label}`} />
       </div>
@@ -91,6 +109,10 @@ export function VenueLocationMap({ lat, lng, title, address }: Props) {
           باز کردن در نقشه
         </a>
       </div>
+      <p
+        className="muted-sm venue-map-attribution"
+        dangerouslySetInnerHTML={{ __html: tileCredit }}
+      />
     </section>
   );
 }
