@@ -34,10 +34,19 @@ router.get('/site-settings', protect, adminOnly, async (req, res) => {
 
 router.patch('/site-settings', protect, adminOnly, async (req, res) => {
   try {
-    const { homeVenuePreviewCount, homeFeaturedPlacements } = req.body || {};
+    const {
+      homeVenuePreviewCount,
+      homeFeaturedPlacements,
+      supportEmail,
+      supportPhone,
+      supportPhoneDisplay,
+    } = req.body || {};
     const settings = await updateSiteSettings({
       homeVenuePreviewCount,
       homeFeaturedPlacements,
+      supportEmail,
+      supportPhone,
+      supportPhoneDisplay,
     });
     res.json({ success: true, ...settings });
   } catch (err) {

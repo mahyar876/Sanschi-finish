@@ -9,6 +9,8 @@
     "dev": "npm run dev:web",
     "build:web": "npm run build --prefix web",
     "test:backend": "npm run test:assistant --prefix backend && npm run test:gallery-filters --prefix backend",
+    "test:backend:integration": "npm run test:flow-smoke --prefix backend && npm run test:concurrent-booking --prefix backend",
+    "test:e2e": "npm run test:e2e --prefix web",
     "preview:responsive": "npm run dev --prefix web",
     "backup:my-future": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-my-future-backup.ps1",
     "deploy:open": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/open-sanschii-deploy.ps1"

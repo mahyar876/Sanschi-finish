@@ -35,6 +35,11 @@ const {
   PAYMENT_STATUS,
 } = require('../services/slotService');
 const { verifyPayment } = require('../services/zarinpalClient');
+const {
+  getWalletBalance,
+  debitWalletForPayment,
+  rollbackWalletPayment,
+} = require('../services/walletService');
 
 // ── تنظیمات ──
 const MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID || '';
@@ -70,7 +75,8 @@ router.post('/zarinpal/request', protect, async (req, res) => {
       });
     }
 
-    const { reservationId, recurringGroupId, returnQuery } = req.body;
+    const { reservationId, recurringGroupId, returnQuery, applyWallet } = req.body;
+    const useWalletBalance = Boolean(applyWallet) && !recurringGroupId;
 
     // ── پیدا کردن رزرو(های) مربوطه و بررسی مالکیت ──
     let reservations = [];
@@ -140,7 +146,45 @@ router.post('/zarinpal/request', protect, async (req, res) => {
         .json({ success: false, message: 'مبلغ رزرو نامعتبر است' });
     }
 
-    const gatewayAmount = toGatewayAmount(finalToman);
+    let walletDebitedThisRequest = 0;
+    if (useWalletBalance && reservations.length === 1) {
+      const r0 = await Reservation.findById(reservations[0]._id);
+      const alreadyWallet = r0.payment?.walletAmount || 0;
+      const balance = await getWalletBalance(req.user._id);
+      const need = Math.max(0, finalToman - alreadyWallet);
+      const walletPart = Math.min(balance, need);
+      if (walletPart > 0 && alreadyWallet === 0) {
+        await debitWalletForPayment(
+          req.user._id,
+          r0._id,
+          walletPart,
+          `بخش کیف پول — رزرو ${r0.code || r0._id}`,
+        );
+        walletDebitedThisRequest = walletPart;
+      }
+    }
+
+    const freshAfterWallet = await Reservation.findById(reservations[0]._id);
+    const walletApplied =
+      freshAfterWallet?.payment?.walletAmount || walletDebitedThisRequest || 0;
+    const remainingToman = Math.max(0, finalToman - walletApplied);
+
+    if (remainingToman <= 0) {
+      const { reservation: confirmed } = await confirmReservationPayment(
+        freshAfterWallet,
+        String(Date.now()),
+        walletApplied >= finalToman ? 'wallet' : 'mixed',
+      );
+      return res.json({
+        success: true,
+        paid: true,
+        code: confirmed.code,
+        walletUsed: walletApplied,
+        message: 'پرداخت با کیف پول تکمیل شد',
+      });
+    }
+
+    const gatewayAmount = toGatewayAmount(remainingToman);
     // returnQuery داخل خود callback_url کدگذاری می‌شود تا پارامترهای رزرو
     // پس از بازگشت از درگاه حفظ شوند.
     const callbackUrl =
@@ -162,6 +206,9 @@ router.post('/zarinpal/request', protect, async (req, res) => {
     const zpData = await zpRes.json();
 
     if (!zpData.data || zpData.data.code !== 100 || !zpData.data.authority) {
+      if (walletDebitedThisRequest > 0) {
+        await rollbackWalletPayment(req.user._id, reservations[0]._id).catch(() => {});
+      }
       const errMsg =
         (zpData.errors &&
           (zpData.errors.message || JSON.stringify(zpData.errors))) ||
@@ -181,9 +228,14 @@ router.post('/zarinpal/request', protect, async (req, res) => {
       success: true,
       authority,
       url: ZP_STARTPAY(authority), // ← فرانت به این آدرس ریدایرکت می‌کند
+      walletUsed: walletApplied,
+      gatewayToman: remainingToman,
     });
   } catch (err) {
     console.error('zarinpal/request error:', err);
+    if (req.body?.reservationId && !String(req.body.reservationId).startsWith('mock')) {
+      await rollbackWalletPayment(req.user._id, req.body.reservationId).catch(() => {});
+    }
     res
       .status(500)
       .json({ success: false, message: 'خطای سرور در اتصال به درگاه' });
@@ -214,6 +266,11 @@ router.get('/zarinpal/callback', async (req, res) => {
 
   // کاربر پرداخت را لغو کرد یا authority نامعتبر است
   if (Status !== 'OK' || !reservations.length) {
+    for (const r of reservations) {
+      if (r.payment?.walletAmount) {
+        await rollbackWalletPayment(r.user, r._id).catch(() => {});
+      }
+    }
     return res.redirect(buildRedirect('payResult=failed'));
   }
 
@@ -238,6 +295,11 @@ router.get('/zarinpal/callback', async (req, res) => {
     const okCode =
       vData.data && (vData.data.code === 100 || vData.data.code === 101);
     if (!okCode) {
+      for (const r of reservations) {
+        if (r.payment?.walletAmount) {
+          await rollbackWalletPayment(r.user, r._id).catch(() => {});
+        }
+      }
       return res.redirect(buildRedirect('payResult=failed'));
     }
 

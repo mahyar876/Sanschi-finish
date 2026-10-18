@@ -11,6 +11,13 @@
 - [ ] پشتیبان‌گیری Cloud Backup Atlas با retention مناسب
 - [ ] هر ۳–۶ ماه یک **بازیابی آزمایشی** روی کلاستر staging
 
+## رزرو همزمان (کد + مانیتور)
+
+- [ ] MongoDB Atlas به‌صورت replica set (برای تراکنش کیف پول)
+- [ ] `ALLOW_MOCK_PAY=false` در production
+- [ ] مانیتور spike پاسخ **409** روی `POST /api/reservations`
+- [ ] تست دوره‌ای: `npm run test:backend:integration` (API + seed) — راهنما: [`concurrent-booking-security-fa.md`](concurrent-booking-security-fa.md)
+
 ## Render (بک‌اند)
 
 - [ ] `NODE_ENV=production`

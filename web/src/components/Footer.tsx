@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/Button';
+import { FooterContact } from '@/components/FooterContact';
 
 const quickLinks = [
   { href: '/gallery', label: 'زمین‌ها و سالن‌ها' },
@@ -28,12 +29,7 @@ export function Footer() {
               <li>رزرو سریع</li>
               <li>چند نوع مجموعه</li>
             </ul>
-            <p className="footer-contact muted-sm">
-              پشتیبانی:{' '}
-              <a href="mailto:support@sanschii.ir">support@sanschii.ir</a>
-              {' · '}
-              <a href="tel:+982100000000">۰۲۱-۰۰۰۰۰۰۰۰</a>
-            </p>
+            <FooterContact />
           </div>
 
           <nav className="footer-nav" aria-label="فهرست پاورقی">

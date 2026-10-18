@@ -74,5 +74,10 @@ npm run dev
 
 ```bash
 npm run build:web          # بیلد فرانت
+npm run test:backend       # تست دستیار + فیلتر گالری
+npm run test:backend:integration   # فلو رزرو + رقابت همزمان (API روشن + seed)
+npm run test:e2e                   # Playwright (بعد از build + start در web)
 cd backend && npm run security:smoke   # با API روشن
 ```
+
+رزرو همزمان: [`docs/concurrent-booking-security-fa.md`](docs/concurrent-booking-security-fa.md)

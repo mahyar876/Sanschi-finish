@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiFetch, ApiError } from '@/lib/fetch-api';
 import { markDemoReservationPaid, upsertDemoReservation } from '@/lib/demo-reservations';
 import { isDemoFrontend } from '@/lib/demo';
@@ -12,6 +12,8 @@ import { applyLocalDiscountCode } from '@/lib/local-discounts';
 import { numFa } from '@/lib/jalali';
 import { debitDemoWallet, fetchWalletBalance } from '@/lib/wallet';
 import { displaySlotTime } from '@/lib/slot-time';
+import { isMockPayEnabled } from '@/lib/mock-pay';
+import { ReservationQr } from '@/components/ReservationQr';
 
 export function PaymentView() {
   const search = useSearchParams();
@@ -49,6 +51,19 @@ export function PaymentView() {
   const [discLoading, setDiscLoading] = useState(false);
   const [discountLocked, setDiscountLocked] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [useWalletBalance, setUseWalletBalance] = useState(true);
+  const [policyLines, setPolicyLines] = useState<string[]>([]);
+
+  const walletApply = useMemo(() => {
+    if (!useWalletBalance || recurringGroupId || !getToken()) return 0;
+    if (!reservationId || reservationId.startsWith('mock')) return 0;
+    return Math.min(walletBalance, finalAmount);
+  }, [useWalletBalance, walletBalance, finalAmount, reservationId, recurringGroupId]);
+
+  const gatewayDue = Math.max(0, finalAmount - walletApply);
+  const mockPay = isMockPayEnabled();
+  const isEphemeralMock =
+    !reservationId || reservationId.startsWith('mock') || isDemoFrontend();
 
   useEffect(() => {
     const token = getToken();
@@ -72,19 +87,51 @@ export function PaymentView() {
 
     if (recurringGroupId) return;
 
-    void apiFetch<{ success: boolean; reservation?: { lockExpiresAt?: string } }>(
-      `/reservations/${reservationId}/revalidate`,
-      { method: 'POST', body: '{}' },
-    )
+    void apiFetch<{
+      success: boolean;
+      reservation?: {
+        lockExpiresAt?: string;
+        code?: string;
+        status?: string;
+        paymentStatus?: string;
+        bookingStatus?: string;
+      };
+    }>(`/reservations/${reservationId}`)
       .then((data) => {
-        if (data.success && data.reservation?.lockExpiresAt) {
-          setLockNote('زمان باقی‌مانده برای پرداخت محدود است؛ در صورت انقضا سانس آزاد می‌شود.');
+        const r = data.reservation;
+        if (!data.success || !r) return;
+        const paid =
+          r.paymentStatus === 'successful' ||
+          r.status === 'paid' ||
+          r.bookingStatus === 'confirmed';
+        if (paid) {
+          if (r.code) setCode(r.code);
+          setDone(true);
+          return;
         }
+        return apiFetch<{ success: boolean; reservation?: { lockExpiresAt?: string } }>(
+          `/reservations/${reservationId}/revalidate`,
+          { method: 'POST', body: '{}' },
+        ).then((rev) => {
+          if (rev.success && rev.reservation?.lockExpiresAt) {
+            setLockNote(
+              'زمان باقی‌مانده برای پرداخت محدود است؛ در صورت انقضا سانس آزاد می‌شود.',
+            );
+          }
+        });
       })
       .catch((e) => {
         if (e instanceof ApiError) setErr(e.message);
       });
   }, [reservationId, recurringGroupId]);
+
+  useEffect(() => {
+    void apiFetch<{ success: boolean; lines: string[] }>('/reservations/cancel-policy')
+      .then((data) => {
+        if (data.success && data.lines?.length) setPolicyLines(data.lines);
+      })
+      .catch(() => {});
+  }, []);
 
   async function applyDiscount() {
     setDiscMsg('');
@@ -234,15 +281,55 @@ export function PaymentView() {
     }
   }
 
+  async function payWithMockReservation() {
+    setLoading(true);
+    setErr('');
+    const token = getToken();
+    try {
+      if (isEphemeralMock) {
+        await payDemoInternal(token, true);
+        return;
+      }
+      if (!token) {
+        setErr('ابتدا وارد حساب شوید');
+        return;
+      }
+      if (recurringGroupId) {
+        setErr('برای رزرو تکراری فعلاً فقط درگاه واقعی فعال است');
+        return;
+      }
+      await apiFetch(`/reservations/${reservationId}/revalidate`, {
+        method: 'POST',
+        body: '{}',
+      });
+      const data = await apiFetch<{
+        success: boolean;
+        message?: string;
+        code?: string;
+        alreadyPaid?: boolean;
+      }>(`/reservations/${reservationId}/pay`, {
+        method: 'POST',
+        body: JSON.stringify({ paymentMethod: 'mock' }),
+      });
+      if (!data.success) throw new Error(data.message);
+      setCode(data.code || '');
+      setDone(true);
+      if (data.alreadyPaid) setErr('');
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'خطا در پرداخت');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function payWithGateway() {
     setLoading(true);
     setErr('');
     const token = getToken();
-    const isMock = !reservationId || reservationId.startsWith('mock');
 
     try {
-      if (isMock || isDemoFrontend()) {
-        await payDemoInternal(token, isMock);
+      if (mockPay || isEphemeralMock) {
+        await payWithMockReservation();
         return;
       }
 
@@ -259,18 +346,32 @@ export function PaymentView() {
       }
 
       const returnQuery = typeof window !== 'undefined' ? window.location.search.slice(1) : '';
-      const data = await apiFetch<{ success: boolean; message?: string; url?: string }>(
-        '/payment/zarinpal/request',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            reservationId: reservationId || undefined,
-            recurringGroupId: recurringGroupId || undefined,
-            returnQuery,
-          }),
-        },
-      );
-      if (!data.success || !data.url) throw new Error(data.message || 'خطا در اتصال به درگاه');
+      const data = await apiFetch<{
+        success: boolean;
+        message?: string;
+        url?: string;
+        paid?: boolean;
+        code?: string;
+        walletUsed?: number;
+      }>('/payment/zarinpal/request', {
+        method: 'POST',
+        body: JSON.stringify({
+          reservationId: reservationId || undefined,
+          recurringGroupId: recurringGroupId || undefined,
+          returnQuery,
+          applyWallet: walletApply > 0,
+        }),
+      });
+      if (!data.success) throw new Error(data.message || 'خطا در اتصال به درگاه');
+      if (data.paid && data.code) {
+        setCode(data.code);
+        if (typeof data.walletUsed === 'number') {
+          setWalletBalance((b) => Math.max(0, b - data.walletUsed!));
+        }
+        setDone(true);
+        return;
+      }
+      if (!data.url) throw new Error(data.message || 'خطا در اتصال به درگاه');
       window.location.href = data.url;
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'خطا در پرداخت');
@@ -323,15 +424,17 @@ export function PaymentView() {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             {pitchName} · {date} · {timeLabel}
           </p>
-          {code && (
-            <img
-              src={`https://quickchart.io/qr?text=${encodeURIComponent(code)}&size=160`}
-              alt={`QR کد رزرو ${code}`}
-              width={160}
-              height={160}
-              style={{ marginTop: '1rem', borderRadius: 8 }}
-            />
-          )}
+          {code ? (
+            <div style={{ marginTop: '1rem' }}>
+              <ReservationQr code={code} size={160} />
+            </div>
+          ) : null}
+          {!recurringGroupId && finalAmount > 0 ? (
+            <p className="muted-sm" style={{ marginTop: '1rem' }}>
+              تقسیم سهم و «کی زده؟» را در{' '}
+              <Link href="/player/reservations">پنل بازیکن → رزروهای من</Link> مدیریت کنید.
+            </p>
+          ) : null}
           <div className="hero-actions" style={{ marginTop: '1.5rem' }}>
             <Link href="/player/reservations" className="btn btn-primary">
               مشاهده جزئیات رزرو
@@ -350,6 +453,11 @@ export function PaymentView() {
       <header className="page-hero">
         <p className="eyebrow">پرداخت</p>
         <h1>تأیید و پرداخت رزرو</h1>
+        {mockPay && !recurringGroupId ? (
+          <p className="subtitle">
+            حالت تست — با دکمهٔ پرداخت، رزرو بدون درگاه بانکی تأیید می‌شود (Mongo + قفل سانس واقعی).
+          </p>
+        ) : null}
       </header>
       <div className="panel">
         <div className="data-table-wrap" style={{ border: 'none' }}>
@@ -408,11 +516,29 @@ export function PaymentView() {
                 <th>قابل پرداخت</th>
                 <td>
                   <strong>{priceFa(finalAmount)} تومان</strong>
+                  {walletApply > 0 && gatewayDue > 0 ? (
+                    <span className="muted-sm" style={{ display: 'block', marginTop: '0.35rem' }}>
+                      {priceFa(walletApply)} از کیف پول + {priceFa(gatewayDue)} درگاه
+                    </span>
+                  ) : null}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        {policyLines.length > 0 ? (
+          <div className="panel" style={{ marginTop: '1rem' }}>
+            <h2 className="h6" style={{ marginTop: 0 }}>
+              سیاست لغو و بازپرداخت
+            </h2>
+            <ul className="muted-sm" style={{ margin: 0, paddingInlineStart: '1.2rem' }}>
+              {policyLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="panel payment-discount-panel" style={{ marginTop: '1rem' }}>
           <h2 className="payment-discount-title">کد تخفیف</h2>
@@ -451,34 +577,43 @@ export function PaymentView() {
           )}
         </div>
 
-        {getToken() && (
-          <div
-            className={
-              canPayWithWallet ? 'wallet-pay-panel' : 'wallet-pay-panel disabled'
-            }
-          >
+        {getToken() && !recurringGroupId && walletBalance > 0 && reservationId && !reservationId.startsWith('mock') ? (
+          <div className="wallet-pay-panel">
             <p style={{ margin: '0 0 0.5rem', fontWeight: 700 }}>کیف پول</p>
-            <p className="muted-sm" style={{ margin: '0 0 0.75rem' }}>
+            <p className="muted-sm" style={{ margin: '0 0 0.5rem' }}>
               موجودی: <strong>{priceFa(walletBalance)}</strong> تومان
-              {!canPayWithWallet && finalAmount > walletBalance && (
-                <>
-                  {' '}
-                  — برای این رزرو {priceFa(finalAmount - walletBalance)} کم دارید.{' '}
-                  <Link href="/player/wallet">شارژ کیف پول</Link>
-                </>
-              )}
             </p>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ width: '100%' }}
-              disabled={loading || !canPayWithWallet}
-              onClick={() => void payWithWallet()}
-            >
-              پرداخت با کیف پول
-            </button>
+            <label className="muted-sm" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={useWalletBalance}
+                onChange={(e) => setUseWalletBalance(e.target.checked)}
+              />
+              {walletApply >= finalAmount
+                ? 'پرداخت کامل از کیف پول'
+                : walletApply > 0
+                  ? `کسر ${priceFa(walletApply)} از کیف پول؛ مابقی از درگاه`
+                  : 'موجودی کافی نیست — فقط درگاه'}
+            </label>
+            {canPayWithWallet ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ width: '100%', marginTop: '0.75rem' }}
+                disabled={loading}
+                onClick={() => void payWithWallet()}
+              >
+                پرداخت کامل با کیف پول
+              </button>
+            ) : walletBalance < finalAmount ? (
+              <p className="muted-sm" style={{ marginTop: '0.5rem' }}>
+                <Link href="/player/wallet">شارژ کیف پول</Link>
+                {' · '}
+                یا با دکمهٔ درگاه، موجودی فعلی به‌صورت خودکار کم می‌شود.
+              </p>
+            ) : null}
           </div>
-        )}
+        ) : null}
 
         {lockNote && <p className="notice">{lockNote}</p>}
         {err && <p className="form-msg err">{err}</p>}
@@ -489,14 +624,14 @@ export function PaymentView() {
           disabled={loading}
           onClick={() => void payWithGateway()}
         >
-          {isDemoFrontend() ||
-          (reservationId && reservationId.startsWith('mock')) ||
-          !reservationId
-            ? 'پرداخت آزمایشی'
-            : 'پرداخت با درگاه بانکی'}
+          {mockPay || isEphemeralMock
+            ? 'پرداخت آزمایشی (بدون درگاه)'
+            : gatewayDue > 0 && walletApply > 0
+              ? `پرداخت ${priceFa(gatewayDue)} در درگاه (+ کیف پول)`
+              : 'پرداخت با درگاه بانکی'}
         </button>
-        {!isDemoFrontend() &&
-          !reservationId.startsWith('mock') &&
+        {!mockPay &&
+          !isEphemeralMock &&
           !recurringGroupId && (
           <>
             <button
@@ -514,6 +649,14 @@ export function PaymentView() {
             </p>
           </>
         )}
+        {mockPay && !isEphemeralMock ? (
+          <p className="muted-sm" style={{ marginTop: '0.75rem' }}>
+            برای تست کیف پول:{' '}
+            <Link href="/player/wallet">شارژ آزمایشی</Link>
+            {' · '}
+            <Link href="/payment/test">صفحهٔ پرداخت mock</Link>
+          </p>
+        ) : null}
       </div>
     </div>
   );

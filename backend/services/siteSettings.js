@@ -77,6 +77,9 @@ async function getSiteSettings({ activePlacementsOnly = false } = {}) {
   return {
     homeVenuePreviewCount: clampPreviewCount(doc.homeVenuePreviewCount),
     homeFeaturedPlacements: placements,
+    supportEmail: (doc.supportEmail || 'support@sanschii.ir').trim(),
+    supportPhone: (doc.supportPhone || '').trim(),
+    supportPhoneDisplay: (doc.supportPhoneDisplay || '').trim(),
     updatedAt: doc.updatedAt,
   };
 }
@@ -94,6 +97,15 @@ async function updateSiteSettings(patch) {
   if (patch.homeFeaturedPlacements !== undefined) {
     update.homeFeaturedPlacements = normalizePlacements(patch.homeFeaturedPlacements);
   }
+  if (patch.supportEmail !== undefined) {
+    update.supportEmail = String(patch.supportEmail).trim().slice(0, 120) || 'support@sanschii.ir';
+  }
+  if (patch.supportPhone !== undefined) {
+    update.supportPhone = String(patch.supportPhone).trim().slice(0, 32);
+  }
+  if (patch.supportPhoneDisplay !== undefined) {
+    update.supportPhoneDisplay = String(patch.supportPhoneDisplay).trim().slice(0, 48);
+  }
 
   const doc = await PlatformSettings.findOneAndUpdate(
     { key: SITE_KEY },
@@ -104,6 +116,9 @@ async function updateSiteSettings(patch) {
   const result = {
     homeVenuePreviewCount: clampPreviewCount(doc.homeVenuePreviewCount),
     homeFeaturedPlacements: serializePlacements(doc.homeFeaturedPlacements),
+    supportEmail: (doc.supportEmail || 'support@sanschii.ir').trim(),
+    supportPhone: (doc.supportPhone || '').trim(),
+    supportPhoneDisplay: (doc.supportPhoneDisplay || '').trim(),
     updatedAt: doc.updatedAt,
   };
 

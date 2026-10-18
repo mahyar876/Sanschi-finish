@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { VenueImage } from '@/components/VenueImage';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -78,8 +77,25 @@ function slotStatus(s: Slot): string {
   return s.taken ? 'booked' : 'free';
 }
 
+/** فقط یک سانس «انتخاب شما» — نه هر قفل قدیمی روی سرور */
 function isMySlotHold(s: Slot, heldSlotIndex: number | null): boolean {
-  return heldSlotIndex === s.slotIndex || !!s.heldByMe;
+  if (heldSlotIndex != null) return s.slotIndex === heldSlotIndex;
+  return !!s.heldByMe;
+}
+
+function pickCanonicalHeldSlot(slots: Slot[], preferIndex: number | null): number | null {
+  const mines = slots.filter((s) => s.heldByMe);
+  if (preferIndex != null && mines.some((s) => s.slotIndex === preferIndex)) {
+    return preferIndex;
+  }
+  if (mines.length === 0) return null;
+  if (mines.length === 1) return mines[0].slotIndex;
+  const best = mines.reduce((a, b) => {
+    const ta = a.lockUntil ? new Date(a.lockUntil).getTime() : 0;
+    const tb = b.lockUntil ? new Date(b.lockUntil).getTime() : 0;
+    return tb >= ta ? b : a;
+  });
+  return best.slotIndex;
 }
 
 function slotDisabled(s: Slot, heldSlotIndex: number | null): boolean {
@@ -130,7 +146,6 @@ export function ReserveView() {
   const [slotView, setSlotView] = useState<SlotView>('bookable');
   const [heldSlotIndex, setHeldSlotIndex] = useState<number | null>(null);
   const [slotPickLoading, setSlotPickLoading] = useState(false);
-  const [catalogLive, setCatalogLive] = useState(false);
   const [apiReachable, setApiReachable] = useState(false);
   const [pitchesFromDb, setPitchesFromDb] = useState(false);
   const heldSlotRef = useRef<number | null>(null);
@@ -181,9 +196,8 @@ export function ReserveView() {
       setName(u.name);
       setPhone(u.phone);
     }
-    void fetchCatalog().then(({ items, live, apiReachable: apiUp, pitchesFromDb: fromDb }) => {
+    void fetchCatalog().then(({ items, apiReachable: apiUp, pitchesFromDb: fromDb }) => {
       setCatalog(items);
-      setCatalogLive(live);
       setApiReachable(apiUp);
       setPitchesFromDb(fromDb);
       const resolved = resolveCatalogPitchId(items, {
@@ -203,10 +217,10 @@ export function ReserveView() {
 
   const applySlotsFromServer = useCallback((next: Slot[]) => {
     setSlots(next);
-    const mine = next.find((s) => s.heldByMe);
-    if (mine) {
-      setHeldSlotIndex(mine.slotIndex);
-      setSlotIndex((cur) => (cur == null ? mine.slotIndex : cur));
+    const canonical = pickCanonicalHeldSlot(next, heldSlotRef.current);
+    if (canonical != null) {
+      setHeldSlotIndex(canonical);
+      setSlotIndex((cur) => (cur == null ? canonical : cur));
     }
   }, []);
 
@@ -443,10 +457,22 @@ export function ReserveView() {
         setSlots((prev) =>
           prev.map((s) => {
             if (s.slotIndex === idx) {
-              return { ...s, displayStatus: 'locked', bookable: false };
+              return {
+                ...s,
+                displayStatus: 'locked',
+                bookable: false,
+                heldByMe: true,
+              };
             }
-            if (prevHeld != null && s.slotIndex === prevHeld) {
-              return { ...s, displayStatus: 'free', bookable: true, taken: false };
+            if (s.heldByMe || s.slotIndex === prevHeld) {
+              return {
+                ...s,
+                displayStatus: 'free',
+                bookable: true,
+                taken: false,
+                heldByMe: false,
+                lockUntil: null,
+              };
             }
             return s;
           }),
@@ -743,6 +769,11 @@ export function ReserveView() {
                 <p className="reserve-venue-link muted-sm">
                   {selectedVenue.address}، {selectedVenue.city}
                 </p>
+                {selectedVenue.rulesText ? (
+                  <p className="muted-sm" style={{ whiteSpace: 'pre-wrap' }}>
+                    {selectedVenue.rulesText}
+                  </p>
+                ) : null}
               </>
             )}
           </section>
@@ -846,7 +877,7 @@ export function ReserveView() {
                       onClick={() => void pickSlot(s.slotIndex)}
                     >
                       <span className="slot-tile__head">
-                        <span className="slot-tile__time">{s.time}</span>
+                        <span className="slot-tile__time">{displaySlotTime(s.time)}</span>
                         {hasFlash ? (
                           <span className="slot-tile__deal">
                             {numFa(s.discountPercent ?? 0)}٪

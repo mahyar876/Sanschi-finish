@@ -83,6 +83,24 @@ const reservationSchema = new mongoose.Schema({
   voidedAt: { type: Date, default: null },
   voidReason: { type: String, default: '' },
 
+  /** تقسیم سهم بین تیم — فقط هماهنگی؛ پرداخت سانس از پلتفرم */
+  teamSplit: {
+    players: { type: Number, default: null },
+    checklist: [
+      {
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        settled: { type: Boolean, default: false },
+      },
+    ],
+    pay: {
+      cardNumber: { type: String, default: '' },
+      sheba: { type: String, default: '' },
+      accountName: { type: String, default: '' },
+      note: { type: String, default: '' },
+    },
+  },
+
   // کد رزرو یکتا
   recurringGroupId: { type: String, default: null },
   code: {

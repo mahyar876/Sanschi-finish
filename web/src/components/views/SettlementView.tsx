@@ -13,6 +13,7 @@ import { apiFetch } from '@/lib/fetch-api';
 import { getDemoSettlements } from '@/lib/demo-dashboard';
 import { isDemoFrontend } from '@/lib/demo';
 import { getUser } from '@/lib/session';
+import { displaySlotTime } from '@/lib/slot-time';
 import { priceFa } from '@/lib/format';
 import {
   settlementStatusClass,
@@ -385,7 +386,8 @@ export function SettlementView() {
                         <ul className="settle-res-list">
                           {s.reservations.map((r) => (
                             <li key={r._id}>
-                              {r.code || r._id} · {r.slotTime} · {priceFa(r.amount || 0)}{' '}
+                              {r.code || r._id} · {displaySlotTime(r.slotTime || '')} ·{' '}
+                              {priceFa(r.amount || 0)}{' '}
                               تومان · {r.status}
                             </li>
                           ))}

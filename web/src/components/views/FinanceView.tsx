@@ -143,7 +143,7 @@ export function FinanceView() {
 
       <DataSection title="جزئیات">
       <div className="data-table-wrap">
-        <table className="data-table">
+        <table className="data-table responsive-stack">
           <thead>
             <tr>
               <th>مبلغ کل</th>
@@ -157,9 +157,9 @@ export function FinanceView() {
               const n = r.pitchAmount ?? Math.max(0, (r.amount || 0) - c);
               return (
                 <tr key={r._id}>
-                  <td>{priceFa(r.amount)}</td>
-                  <td>{priceFa(c)}</td>
-                  <td>{priceFa(n)}</td>
+                  <td data-label="مبلغ کل">{priceFa(r.amount)}</td>
+                  <td data-label="کارمزد">{priceFa(c)}</td>
+                  <td data-label="سهم مالک">{priceFa(n)}</td>
                 </tr>
               );
             })}

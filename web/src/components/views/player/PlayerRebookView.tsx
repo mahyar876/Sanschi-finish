@@ -6,6 +6,7 @@ import { DataSection, PageIntro } from '@/components/dashboard/DashboardPageBloc
 import { apiFetch } from '@/lib/fetch-api';
 import { getDemoMyReservations } from '@/lib/demo-reservations';
 import { isDemoFrontend } from '@/lib/demo';
+import { displaySlotTime } from '@/lib/slot-time';
 
 type Row = {
   _id: string;
@@ -46,7 +47,7 @@ export function PlayerRebookView() {
             <li key={r._id} className="res-card panel">
               <h3 className="dash-section-title">{r.pitch?.name || 'مجموعه'}</h3>
               <p className="muted-sm">
-                {r.date} · {r.slotTime}
+                {r.date} · {displaySlotTime(r.slotTime)}
               </p>
               <Link
                 href={`/reserve?pitchId=${encodeURIComponent(r.pitch?._id || '')}`}

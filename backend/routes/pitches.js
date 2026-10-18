@@ -7,7 +7,7 @@ const {
   expireStaleForDaily,
   normalizeSlot,
   tryAcquireLock,
-  releaseSlotOnDaily,
+  releaseOwnedLock,
   ensureDaily,
   SLOT_STATUS,
 } = require('../services/slotService');
@@ -383,8 +383,7 @@ router.post('/:id/slots/release', protect, async (req, res) => {
       !norm.taken &&
       !slot.reservationId
     ) {
-      releaseSlotOnDaily(daily, idx);
-      await daily.save();
+      await releaseOwnedLock(daily._id, idx, req.user._id);
       invalidateInflightPrefix(`slots:${req.params.id}:`);
       bustPublicPitchCaches();
     }

@@ -8,10 +8,11 @@ import {
   StatCard,
   StatGrid,
 } from '@/components/dashboard/DashboardPageBlocks';
-import { apiFetch } from '@/lib/fetch-api';
+import { apiFetch, ApiError } from '@/lib/fetch-api';
 import { getDemoFinanceStats } from '@/lib/demo-dashboard';
 import { isDemoFrontend } from '@/lib/demo';
 import { priceFa } from '@/lib/format';
+import { adminCreditWallet } from '@/lib/wallet';
 
 type Overview = {
   reservations?: {
@@ -36,6 +37,12 @@ type Summary = {
 export function AdminFinanceView() {
   const [overview, setOverview] = useState<Overview>({});
   const [summary, setSummary] = useState<Summary>({});
+  const [creditPhone, setCreditPhone] = useState('');
+  const [creditAmount, setCreditAmount] = useState('500000');
+  const [creditNote, setCreditNote] = useState('');
+  const [creditMsg, setCreditMsg] = useState('');
+  const [creditErr, setCreditErr] = useState('');
+  const [creditLoading, setCreditLoading] = useState(false);
 
   useEffect(() => {
     if (isDemoFrontend()) {
@@ -72,6 +79,40 @@ export function AdminFinanceView() {
   const r = overview.reservations;
   const pending = summary.byStatus?.pending;
 
+  async function submitWalletCredit() {
+    setCreditMsg('');
+    setCreditErr('');
+    const phone = creditPhone.replace(/\D/g, '').trim();
+    const amount = parseInt(creditAmount.replace(/\D/g, ''), 10);
+    if (!phone || phone.length < 10) {
+      setCreditErr('شماره موبایل کاربر را وارد کنید');
+      return;
+    }
+    if (!Number.isFinite(amount) || amount < 1) {
+      setCreditErr('مبلغ نامعتبر');
+      return;
+    }
+    if (isDemoFrontend()) {
+      setCreditMsg('در حالت نمایشی اعتبار واقعی ثبت نمی‌شود');
+      return;
+    }
+    setCreditLoading(true);
+    try {
+      const { balance } = await adminCreditWallet({
+        phone,
+        amount,
+        note: creditNote.trim() || undefined,
+      });
+      setCreditMsg(`اعتبار ثبت شد — موجودی جدید: ${priceFa(balance)} تومان`);
+      setCreditPhone('');
+      setCreditNote('');
+    } catch (e) {
+      setCreditErr(e instanceof ApiError ? e.message : 'خطا');
+    } finally {
+      setCreditLoading(false);
+    }
+  }
+
   return (
     <>
       <PageIntro
@@ -107,6 +148,52 @@ export function AdminFinanceView() {
           hint={`خالص: ${priceFa(summary.totals?.net ?? 0)}`}
         />
       </StatGrid>
+
+      <ActionsPanel
+        title="اعتبار کیف پول بازیکن"
+        description="برای جبران لغو، تبلیغ یا شارژ دستی — مبلغ فوراً در کیف پول کاربر می‌نشیند"
+      >
+        <div className="form-grid" style={{ maxWidth: 520 }}>
+          <div className="field">
+            <label htmlFor="wallet-credit-phone">موبایل کاربر</label>
+            <input
+              id="wallet-credit-phone"
+              inputMode="tel"
+              value={creditPhone}
+              onChange={(e) => setCreditPhone(e.target.value)}
+              placeholder="09123456789"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="wallet-credit-amount">مبلغ (تومان)</label>
+            <input
+              id="wallet-credit-amount"
+              inputMode="numeric"
+              value={creditAmount}
+              onChange={(e) => setCreditAmount(e.target.value)}
+            />
+          </div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor="wallet-credit-note">توضیح (اختیاری)</label>
+            <input
+              id="wallet-credit-note"
+              value={creditNote}
+              onChange={(e) => setCreditNote(e.target.value)}
+              placeholder="مثلاً جبران لغو سانس"
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={creditLoading}
+          onClick={() => void submitWalletCredit()}
+        >
+          {creditLoading ? 'در حال ثبت…' : 'ثبت اعتبار'}
+        </button>
+        {creditMsg && <p className="form-msg ok">{creditMsg}</p>}
+        {creditErr && <p className="form-msg err">{creditErr}</p>}
+      </ActionsPanel>
 
       <ActionsPanel title="میانبرها">
         <div className="hero-actions">

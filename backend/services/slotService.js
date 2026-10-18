@@ -114,21 +114,13 @@ async function expireReservationAndSlot(reservation, daily, slotIndex) {
     'زمان پرداخت به پایان رسید؛ سانس آزاد شد',
   );
 
-  const slot = daily.slots.find((s) => s.slotIndex === slotIndex);
-  if (slot) {
-    slot.taken = false;
-    slot.takenBy = null;
-    slot.reservationId = null;
-    slot.slotStatus = SLOT_STATUS.FREE;
-    slot.lockUntil = null;
-    slot.lockedBy = null;
-    await daily.save();
-  }
+  await releaseSlotForReservation(daily._id, slotIndex, reservation._id);
 }
 
-/** رزروهای pending_payment منقضی + قفل سانس */
+/** رزروهای pending_payment منقضی + قفل سانس — فقط همان سانس، بدون save کل سند */
 async function expireStaleForDaily(daily) {
   const now = new Date();
+  if (!daily?.slots?.length) return;
   for (const slot of daily.slots) {
     if (
       slot.lockUntil &&
@@ -137,11 +129,30 @@ async function expireStaleForDaily(daily) {
       !slot.taken
     ) {
       const resId = slot.reservationId;
-      slot.slotStatus = SLOT_STATUS.FREE;
-      slot.lockUntil = null;
-      slot.lockedBy = null;
-      slot.reservationId = null;
-      await daily.save();
+      const released = await DailyAvailability.updateOne(
+        {
+          _id: daily._id,
+          slots: {
+            $elemMatch: {
+              slotIndex: slot.slotIndex,
+              taken: { $ne: true },
+              slotStatus: SLOT_STATUS.LOCKED,
+              lockUntil: { $lte: now },
+            },
+          },
+        },
+        {
+          $set: {
+            'slots.$.slotStatus': SLOT_STATUS.FREE,
+            'slots.$.taken': false,
+            'slots.$.takenBy': null,
+            'slots.$.reservationId': null,
+            'slots.$.lockUntil': null,
+            'slots.$.lockedBy': null,
+          },
+        },
+      );
+      if (!released.modifiedCount) continue;
       if (resId) {
         const r = await Reservation.findById(resId);
         if (
@@ -211,6 +222,8 @@ async function tryAcquireLock({ pitch, pitchId, date, slotIndex, userId }) {
         'این سانس همین الان توسط کاربر دیگری در حال رزرو است. لطفاً سانس دیگری انتخاب کنید.',
     };
   }
+
+  await releaseOtherOwnedLocks(refreshedDaily._id, userId, slotIdx, now);
 
   const existingActive = await Reservation.findOne({
     pitch: pitchId,
@@ -289,11 +302,123 @@ function releaseSlotOnDaily(daily, slotIndex) {
   slot.lockedBy = null;
 }
 
+const SLOT_FREE_SET = {
+  'slots.$.slotStatus': SLOT_STATUS.FREE,
+  'slots.$.taken': false,
+  'slots.$.takenBy': null,
+  'slots.$.reservationId': null,
+  'slots.$.lockUntil': null,
+  'slots.$.lockedBy': null,
+};
+
+/** قبل از قفل جدید، بقیهٔ قفل‌های موقت همین کاربر در همان روز را آزاد می‌کند */
+async function releaseOtherOwnedLocks(dailyId, userId, keepSlotIndex, now = new Date()) {
+  const daily = await DailyAvailability.findById(dailyId);
+  if (!daily || !userId) return;
+  const uid = userId.toString();
+  const keep = parseSlotIndex(keepSlotIndex);
+  for (const slot of daily.slots) {
+    if (slot.slotIndex === keep) continue;
+    const norm = normalizeSlot(slot, now);
+    if (
+      norm.lockedBy &&
+      norm.lockedBy.toString() === uid &&
+      norm.lockUntil &&
+      new Date(norm.lockUntil) > now &&
+      !norm.taken &&
+      norm.slotStatus !== SLOT_STATUS.BOOKED
+    ) {
+      await releaseOwnedLock(dailyId, slot.slotIndex, userId);
+    }
+  }
+}
+
+/** فقط قفل همین کاربر را برمی‌دارد — سند روزانه را کامل save نمی‌کند */
+async function releaseOwnedLock(dailyId, slotIndex, userId) {
+  const slotIdx = parseSlotIndex(slotIndex);
+  if (slotIdx == null || !dailyId || !userId) return { released: false };
+  const result = await DailyAvailability.updateOne(
+    {
+      _id: dailyId,
+      slots: {
+        $elemMatch: {
+          slotIndex: slotIdx,
+          taken: { $ne: true },
+          slotStatus: { $nin: [SLOT_STATUS.BOOKED, SLOT_STATUS.BLOCKED] },
+          lockedBy: userId,
+        },
+      },
+    },
+    { $set: SLOT_FREE_SET },
+  );
+  return { released: result.modifiedCount > 0 };
+}
+
+/** آزاد کردن سانسی که به همین رزرو وصل است، بدون دست زدن به سانس‌های دیگر */
+async function releaseSlotForReservation(dailyId, slotIndex, reservationId) {
+  const slotIdx = parseSlotIndex(slotIndex);
+  if (slotIdx == null || !dailyId || !reservationId) return { released: false };
+  const result = await DailyAvailability.updateOne(
+    {
+      _id: dailyId,
+      slots: {
+        $elemMatch: {
+          slotIndex: slotIdx,
+          reservationId,
+          slotStatus: { $ne: SLOT_STATUS.BLOCKED },
+        },
+      },
+    },
+    { $set: SLOT_FREE_SET },
+  );
+  return { released: result.modifiedCount > 0 };
+}
+
+/** قبل از تأیید پرداخت — رزرو دیگری نباید همان سانس را اشغال کرده باشد */
+async function assertNoSlotBookingConflict(pitchId, date, slotIndex, reservationId) {
+  const slotIdx = parseSlotIndex(slotIndex);
+  if (slotIdx == null) return;
+
+  const conflict = await Reservation.findOne({
+    _id: { $ne: reservationId },
+    pitch: pitchId,
+    date,
+    slotIndex: slotIdx,
+    bookingStatus: { $in: ACTIVE_SLOT_BOOKING_STATUSES },
+  }).select('_id bookingStatus paymentStatus');
+
+  if (conflict) {
+    const err = new Error(
+      'این سانس قبلاً توسط کاربر دیگری رزرو شده است. در صورت کسر وجه با پشتیبانی تماس بگیرید.',
+    );
+    err.code = 'SLOT_CONFLICT';
+    err.statusCode = 409;
+    throw err;
+  }
+}
+
 async function confirmSlotBooked(daily, slotIndex, userId, reservationId) {
   const slotIdx = parseSlotIndex(slotIndex);
   if (slotIdx == null) {
-    throw new Error('سانس نامعتبر است');
+    const err = new Error('سانس نامعتبر است');
+    err.statusCode = 400;
+    throw err;
   }
+
+  const alreadyOurs = await DailyAvailability.findOne({
+    _id: daily._id,
+    slots: {
+      $elemMatch: {
+        slotIndex: slotIdx,
+        taken: true,
+        reservationId,
+        slotStatus: SLOT_STATUS.BOOKED,
+      },
+    },
+  }).select('_id');
+  if (alreadyOurs) return;
+
+  await assertNoSlotBookingConflict(daily.pitch, daily.date, slotIdx, reservationId);
 
   const claim = await DailyAvailability.updateOne(
     {
@@ -301,7 +426,8 @@ async function confirmSlotBooked(daily, slotIndex, userId, reservationId) {
       slots: {
         $elemMatch: {
           slotIndex: slotIdx,
-          taken: false,
+          taken: { $ne: true },
+          slotStatus: { $nin: [SLOT_STATUS.BOOKED, SLOT_STATUS.BLOCKED] },
           $or: [
             { reservationId },
             { reservationId: null },
@@ -322,9 +448,12 @@ async function confirmSlotBooked(daily, slotIndex, userId, reservationId) {
     },
   );
   if (!claim.modifiedCount) {
-    throw new Error(
+    const err = new Error(
       'این سانس قبلاً توسط کاربر دیگری رزرو شده است. در صورت کسر وجه با پشتیبانی تماس بگیرید.',
     );
+    err.code = 'SLOT_CONFLICT';
+    err.statusCode = 409;
+    throw err;
   }
 }
 
@@ -336,7 +465,10 @@ module.exports = {
   parseSlotIndex,
   expireStaleForDaily,
   tryAcquireLock,
+  assertNoSlotBookingConflict,
   releaseSlotOnDaily,
+  releaseOwnedLock,
+  releaseSlotForReservation,
   confirmSlotBooked,
   expireReservationAndSlot,
   appendHistory,

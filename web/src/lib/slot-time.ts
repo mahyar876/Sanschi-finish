@@ -10,6 +10,8 @@ function toAsciiDigits(str: string): string {
 
 const DEFAULT_SLOT_MINUTES = 90;
 
+export type SlotHm = { h: number; m: number };
+
 function parseHmPart(part: string): [number, number] | null {
   const m = toAsciiDigits(part)
     .trim()
@@ -18,38 +20,68 @@ function parseHmPart(part: string): [number, number] | null {
   return [parseInt(m[1], 10), parseInt(m[2] || '0', 10)];
 }
 
-function formatSlotClock(h: number, m: number): string {
-  if (m === 30) return `${numFa(h)} و نیم`;
-  if (m === 0) return `${numFa(h)}`;
-  return `${numFa(h)}:${numFa(String(m).padStart(2, '0'))}`;
+/** ساعت ۲۴ساعته ایران — مثلاً ۱۴:۰۰ (دو ظهر) */
+export function formatClock24Fa(h: number, m: number): string {
+  return `${numFa(String(h).padStart(2, '0'))}:${numFa(String(m).padStart(2, '0'))}`;
 }
 
-/** نمایش سانس برای کاربر — «۱۸ تا ۱۹ و نیم» یا بازهٔ کامل */
-export function displaySlotTime(raw: string): string {
+/** پارس بازهٔ ذخیره‌شده — «۰۶:۰۰–۰۷:۳۰» */
+export function parseSlotRange(raw: string): { start: SlotHm; end: SlotHm } | null {
   const trimmed = String(raw || '').trim();
-  if (!trimmed || trimmed === '—') return trimmed || '—';
-
+  if (!trimmed) return null;
   const norm = toAsciiDigits(trimmed).replace(/[–—−]/g, '-');
   const chunks = norm
     .split('-')
     .map((s) => s.trim())
     .filter(Boolean);
-
   if (chunks.length >= 2) {
-    const start = parseHmPart(chunks[0]);
-    const end = parseHmPart(chunks[1]);
-    if (start && end) {
-      return `${formatSlotClock(start[0], start[1])} تا ${formatSlotClock(end[0], end[1])}`;
-    }
+    const a = parseHmPart(chunks[0]);
+    const b = parseHmPart(chunks[1]);
+    if (a && b) return { start: { h: a[0], m: a[1] }, end: { h: b[0], m: b[1] } };
   }
-
   const start = parseHmPart(chunks[0] || norm);
-  if (!start) return trimmed;
-
+  if (!start) return null;
   const totalMin = start[0] * 60 + start[1] + DEFAULT_SLOT_MINUTES;
-  const endH = Math.floor(totalMin / 60) % 24;
-  const endM = totalMin % 60;
-  return `${formatSlotClock(start[0], start[1])} تا ${formatSlotClock(endH, endM)}`;
+  return {
+    start: { h: start[0], m: start[1] },
+    end: { h: Math.floor(totalMin / 60) % 24, m: totalMin % 60 },
+  };
+}
+
+/** فرمت استاندارد DB — ارقام فارسی و خط تیرهٔ اصلی */
+export function formatSlotRangeStorage(start: SlotHm, end: SlotHm): string {
+  return `${formatClock24Fa(start.h, start.m)}–${formatClock24Fa(end.h, end.m)}`;
+}
+
+export function slotHmToInputValue({ h, m }: SlotHm): string {
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+export function inputValueToSlotHm(v: string): SlotHm | null {
+  const parts = String(v || '').trim().split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+    return null;
+  }
+  return { h, m };
+}
+
+export function addMinutesToHm({ h, m }: SlotHm, minutes: number): SlotHm {
+  let total = h * 60 + m + minutes;
+  if (total < 0) total = 0;
+  total %= 24 * 60;
+  return { h: Math.floor(total / 60), m: total % 60 };
+}
+
+/** نمایش یکسان سانس — ۲۴ساعته با ارقام فارسی: «۱۴:۰۰–۱۵:۳۰» */
+export function displaySlotTime(raw: string): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed || trimmed === '—') return trimmed || '—';
+  const range = parseSlotRange(trimmed);
+  if (range) return formatSlotRangeStorage(range.start, range.end);
+  return trimmed;
 }
 
 function parseJalaliApiDate(dateStr: string): [number, number, number] {

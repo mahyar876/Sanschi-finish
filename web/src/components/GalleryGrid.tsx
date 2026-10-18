@@ -202,11 +202,29 @@ export function GalleryGrid() {
         <p className="result-count">
           {numFa(list.length)} مورد در تهران — رزرو آنلاین چمن، فوتسال و والیبال
         </p>
-        <div className="venue-grid">
-          {list.map((v) => (
-            <VenueCard key={v.pitchId} venue={v} />
-          ))}
-        </div>
+        {list.length === 0 ? (
+          <div className="panel empty-state" role="status">
+            {items.length === 0 && live ? (
+              <>
+                <p>فعلاً زمینی در سرور ثبت نشده است.</p>
+                <p className="muted-sm">
+                  مدیر یک‌بار <code>npm run seed</code> را روی API اجرا کند یا از پنل ادمین زمین
+                  اضافه کند.
+                </p>
+              </>
+            ) : items.length === 0 && !live ? (
+              <p>کاتالوگ در دسترس نیست — API را روشن کنید (پورت ۵۰۰۰).</p>
+            ) : (
+              <p>با این فیلترها موردی پیدا نشد. فیلترها را عوض کنید یا «همه» را انتخاب کنید.</p>
+            )}
+          </div>
+        ) : (
+          <div className="venue-grid">
+            {list.map((v) => (
+              <VenueCard key={v.pitchId} venue={v} />
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

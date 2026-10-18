@@ -1,14 +1,17 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Reservation = require('../models/Reservation');
 const Pitch = require('../models/Pitch');
 const DailyAvailability = require('../models/DailyAvailability');
 const BookingHistory = require('../models/BookingHistory');
 const { protect, adminOnly } = require('../middleware/authController');
+const { reservationLimiter, paymentLimiter } = require('../lib/rateLimits');
 const {
   computeTotals,
   tryAcquireLock,
-  releaseSlotOnDaily,
+  releaseOwnedLock,
+  releaseSlotForReservation,
   expireStaleForDaily,
   parseSlotIndex,
   BOOKING_STATUS,
@@ -21,7 +24,10 @@ const {
   validateDiscountCode,
   consumeDiscountCode,
 } = require('../services/discountService');
-const { describeCancelPolicy } = require('../services/cancelPolicy');
+const {
+  describeCancelPolicy,
+  computeRefundForReservation,
+} = require('../services/cancelPolicy');
 const { applyLastMinuteToSlot } = require('../services/lastMinutePricing');
 const {
   cancelReservationByUser,
@@ -34,6 +40,103 @@ const { isSlotPast } = require('../lib/jalaliTime');
 
 function getPitchCommission(pitch) {
   return (pitch && pitch.commissionAmount) || 0;
+}
+
+function isObjectId(id) {
+  return typeof id === 'string' && mongoose.Types.ObjectId.isValid(id) && /^[a-f\d]{24}$/i.test(id);
+}
+
+function safeNote(note) {
+  return String(note || '').trim().slice(0, 500);
+}
+
+function safePlayerCount(raw, fallback) {
+  const base = Number.isFinite(Number(fallback)) ? Number(fallback) : 10;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return Math.min(Math.max(base, 1), 30);
+  return Math.min(n, 30);
+}
+
+function normalizeCardDigits(raw) {
+  return String(raw || '')
+    .replace(/\D/g, '')
+    .slice(0, 16);
+}
+
+function normalizeSheba(raw) {
+  const up = String(raw || '')
+    .toUpperCase()
+    .replace(/\s/g, '');
+  if (!up) return '';
+  if (up.startsWith('IR')) return up.slice(0, 26);
+  const digits = up.replace(/\D/g, '').slice(0, 24);
+  return digits ? `IR${digits}` : '';
+}
+
+function normalizeTeamChecklist(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, 30)
+    .map((item, i) => {
+      const name = String(item?.name || '').trim().slice(0, 80);
+      if (!name) return null;
+      return {
+        id: String(item?.id || `p-${i}-${Date.now()}`).slice(0, 64),
+        name,
+        settled: !!item?.settled,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeTeamPay(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      cardNumber: '',
+      sheba: '',
+      accountName: '',
+      note: '',
+    };
+  }
+  return {
+    cardNumber: normalizeCardDigits(raw.cardNumber),
+    sheba: normalizeSheba(raw.sheba),
+    accountName: String(raw.accountName || '').trim().slice(0, 120),
+    note: String(raw.note || '').trim().slice(0, 200),
+  };
+}
+
+function maskPhoneForPublic(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 10) return '';
+  return `${digits.slice(0, 4)}***${digits.slice(-4)}`;
+}
+
+function reservationIsActiveForVerify(r) {
+  if (!r) return false;
+  if (r.status === 'cancelled') return false;
+  const bs = String(r.bookingStatus || '');
+  if (bs === BOOKING_STATUS.EXPIRED || bs.startsWith('cancelled')) return false;
+  return (
+    r.paymentStatus === PAYMENT_STATUS.SUCCESSFUL ||
+    r.status === 'paid' ||
+    r.bookingStatus === BOOKING_STATUS.CONFIRMED ||
+    r.bookingStatus === BOOKING_STATUS.CHECKED_IN ||
+    r.bookingStatus === BOOKING_STATUS.COMPLETED
+  );
+}
+
+function teamSplitForClient(r, bookerName) {
+  const ts = r.teamSplit || {};
+  const pay = normalizeTeamPay(ts.pay);
+  const hasPay =
+    pay.cardNumber || pay.sheba || pay.accountName || pay.note;
+  return {
+    players: ts.players != null ? safePlayerCount(ts.players, 10) : 10,
+    checklist: Array.isArray(ts.checklist) ? ts.checklist : [],
+    pay: hasPay ? pay : undefined,
+    bookerName: bookerName || undefined,
+  };
 }
 
 async function loadOwnedReservation(req, res, next) {
@@ -55,15 +158,19 @@ async function loadOwnedReservation(req, res, next) {
 // ─────────────────────────────────────
 // POST /api/reservations  (ثبت رزرو)
 // ─────────────────────────────────────
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, reservationLimiter, async (req, res) => {
   try {
     const { pitchId, slotIndex, date, playerCount, note, discountCode } =
       req.body;
 
-    if (!date) {
+    if (!date || typeof date !== 'string') {
       return res
         .status(400)
         .json({ success: false, message: 'تاریخ الزامی است' });
+    }
+
+    if (!isObjectId(pitchId)) {
+      return res.status(400).json({ success: false, message: 'زمین نامعتبر است' });
     }
 
     const slotIdx = parseSlotIndex(slotIndex);
@@ -76,6 +183,14 @@ router.post('/', protect, async (req, res) => {
     const pitch = await Pitch.findById(pitchId);
     if (!pitch || !pitch.isActive) {
       return res.status(404).json({ success: false, message: 'زمین پیدا نشد' });
+    }
+
+    const { isPhoneBlockedForPitch } = require('../services/ownerInsights');
+    if (await isPhoneBlockedForPitch(pitchId, req.user.phone)) {
+      return res.status(403).json({
+        success: false,
+        message: 'امکان رزرو این مجموعه برای حساب شما وجود ندارد. با مجموعه تماس بگیرید.',
+      });
     }
 
     const lockResult = await tryAcquireLock({
@@ -99,6 +214,7 @@ router.post('/', protect, async (req, res) => {
     if (discountCode) {
       const v = await validateDiscountCode(discountCode, pitchId, slot.price);
       if (!v.ok) {
+        await releaseOwnedLock(daily._id, slotIdx, req.user._id);
         return res.status(400).json({ success: false, message: v.message });
       }
       discount = v.discountAmount;
@@ -119,8 +235,8 @@ router.post('/', protect, async (req, res) => {
         slotIndex: slotIdx,
         slotTime: slot.time,
         date,
-        playerCount: playerCount || pitch.size,
-        note: note || '',
+        playerCount: safePlayerCount(playerCount, pitch.size),
+        note: safeNote(note),
         amount: totalAmount,
         basePrice,
         discountAmount: discount,
@@ -133,14 +249,14 @@ router.post('/', protect, async (req, res) => {
       });
     } catch (createErr) {
       if (createErr && createErr.code === 11000) {
-        releaseSlotOnDaily(daily, slotIdx);
-        await daily.save();
+        await releaseOwnedLock(daily._id, slotIdx, req.user._id);
         return res.status(409).json({
           success: false,
           message:
             'این سانس همین الان توسط کاربر دیگری رزرو شد. لطفاً سانس دیگری انتخاب کنید.',
         });
       }
+      await releaseOwnedLock(daily._id, slotIdx, req.user._id);
       throw createErr;
     }
 
@@ -164,8 +280,7 @@ router.post('/', protect, async (req, res) => {
 
     if (!linked.modifiedCount) {
       await Reservation.findByIdAndDelete(reservation._id);
-      releaseSlotOnDaily(daily, slotIdx);
-      await daily.save();
+      await releaseOwnedLock(daily._id, slotIdx, req.user._id);
       return res.status(409).json({
         success: false,
         message:
@@ -285,13 +400,21 @@ router.post('/:id/discount', protect, loadOwnedReservation, async (req, res) => 
 // ─────────────────────────────────────
 // POST /api/reservations/recurring
 // ─────────────────────────────────────
-router.post('/recurring', protect, async (req, res) => {
+router.post('/recurring', protect, reservationLimiter, async (req, res) => {
   try {
     const { pitchId, slotIndex, dates, playerCount, note } = req.body;
     if (!Array.isArray(dates) || !dates.length) {
       return res
         .status(400)
         .json({ success: false, message: 'تاریخ‌ها الزامی است' });
+    }
+    if (dates.length > 12) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'حداکثر ۱۲ تاریخ در هر درخواست' });
+    }
+    if (!isObjectId(pitchId)) {
+      return res.status(400).json({ success: false, message: 'زمین نامعتبر است' });
     }
     const slotIdx = parseSlotIndex(slotIndex);
     if (slotIdx == null) {
@@ -342,8 +465,8 @@ router.post('/recurring', protect, async (req, res) => {
           slotIndex: slotIdx,
           slotTime: slot.time,
           date,
-          playerCount: playerCount || pitch.size,
-          note: note || '',
+          playerCount: safePlayerCount(playerCount, pitch.size),
+          note: safeNote(note),
           amount: totalAmount,
           basePrice,
           commissionAtBooking: commission,
@@ -354,10 +477,7 @@ router.post('/recurring', protect, async (req, res) => {
           recurringGroupId: groupId,
         });
       } catch (createErr) {
-        if (createErr && createErr.code === 11000) {
-          releaseSlotOnDaily(daily, slotIdx);
-          await daily.save();
-        }
+        await releaseOwnedLock(daily._id, slotIdx, req.user._id);
         skipped.push(date);
         continue;
       }
@@ -376,8 +496,7 @@ router.post('/recurring', protect, async (req, res) => {
       );
       if (!linked.modifiedCount) {
         await Reservation.findByIdAndDelete(reservation._id);
-        releaseSlotOnDaily(daily, slotIdx);
-        await daily.save();
+        await releaseOwnedLock(daily._id, slotIdx, req.user._id);
         skipped.push(date);
         continue;
       }
@@ -412,7 +531,7 @@ router.post('/recurring', protect, async (req, res) => {
 // POST /api/reservations/recurring/:groupId/pay
 // تأیید پرداخت گروهی — کمیسیون هر رزرو با commissionAmount فعلیِ زمین snapshot می‌شه
 // ─────────────────────────────────────
-router.post('/recurring/:groupId/pay', protect, async (req, res) => {
+router.post('/recurring/:groupId/pay', protect, paymentLimiter, async (req, res) => {
   try {
     if (
       process.env.NODE_ENV === 'production' &&
@@ -464,8 +583,8 @@ router.delete('/recurring/:groupId', protect, async (req, res) => {
         date: r.date,
       });
       if (daily) {
-        releaseSlotOnDaily(daily, r.slotIndex);
-        await daily.save();
+        await releaseSlotForReservation(daily._id, r.slotIndex, r._id);
+        await releaseOwnedLock(daily._id, r.slotIndex, req.user._id);
       }
       r.status = 'cancelled';
       r.bookingStatus = BOOKING_STATUS.CANCELLED_BY_USER;
@@ -498,6 +617,124 @@ router.get('/my', protect, async (req, res) => {
 // ─────────────────────────────────────
 router.get('/cancel-policy', async (req, res) => {
   res.json({ success: true, lines: describeCancelPolicy() });
+});
+
+// ─────────────────────────────────────
+// GET /api/reservations/verify/:code  (QR — تأیید سانس در زمین، بدون لاگین)
+// ─────────────────────────────────────
+router.get('/verify/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code || '')
+      .trim()
+      .toUpperCase();
+    if (!code || code.length < 4) {
+      return res.status(400).json({ success: false, message: 'کد نامعتبر' });
+    }
+    const r = await Reservation.findOne({ code })
+      .populate('pitch', 'name address type size')
+      .populate('user', 'name phone');
+    if (!r) {
+      return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
+    }
+    const bookerName = r.user?.name ? String(r.user.name).trim() : '';
+    const bookerPhone = r.user?.phone ? String(r.user.phone) : '';
+    res.json({
+      success: true,
+      verify: {
+        code: r.code,
+        pitchName: r.pitch?.name || 'مجموعه',
+        pitchAddress: r.pitch?.address || '',
+        pitchType: r.pitch?.type || '',
+        date: r.date,
+        slotTime: r.slotTime,
+        amount: r.amount,
+        bookerName: bookerName || undefined,
+        bookerPhoneMasked: maskPhoneForPublic(bookerPhone) || undefined,
+        status: r.status,
+        bookingStatus: r.bookingStatus,
+        paymentStatus: r.paymentStatus,
+        valid: reservationIsActiveForVerify(r),
+        checkedIn: r.bookingStatus === BOOKING_STATUS.CHECKED_IN,
+      },
+    });
+  } catch (err) {
+    console.error('GET /verify/:code error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// GET /api/reservations/share/:code  (صفحهٔ اشتراک تیم — بدون لاگین)
+// ─────────────────────────────────────
+router.get('/share/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code || '')
+      .trim()
+      .toUpperCase();
+    if (!code || code.length < 4) {
+      return res.status(400).json({ success: false, message: 'کد نامعتبر' });
+    }
+    const r = await Reservation.findOne({ code })
+      .populate('pitch', 'name')
+      .populate('user', 'name');
+    if (!r) {
+      return res.status(404).json({ success: false, message: 'رزرو پیدا نشد' });
+    }
+    if (
+      r.bookingStatus === BOOKING_STATUS.EXPIRED ||
+      r.status === 'cancelled' ||
+      String(r.bookingStatus || '').startsWith('cancelled')
+    ) {
+      return res.status(410).json({ success: false, message: 'این رزرو دیگر فعال نیست' });
+    }
+    const bookerName = r.user?.name ? String(r.user.name) : undefined;
+    res.json({
+      success: true,
+      share: {
+        pitchName: r.pitch?.name || 'مجموعه',
+        date: r.date,
+        time: r.slotTime,
+        amount: r.amount,
+        reservationCode: r.code,
+        bookerName,
+        ...teamSplitForClient(r, bookerName),
+      },
+    });
+  } catch (err) {
+    console.error('GET /share/:code error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+// ─────────────────────────────────────
+// PATCH /api/reservations/:id/team-split
+// ─────────────────────────────────────
+router.patch('/:id/team-split', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const r = req.reservation;
+    const { players, checklist, pay } = req.body || {};
+    const nextChecklist = normalizeTeamChecklist(checklist);
+    const nextPay = normalizeTeamPay(pay);
+    const nextPlayers = safePlayerCount(
+      players,
+      r.teamSplit?.players || r.playerCount || 10,
+    );
+    r.teamSplit = {
+      players: nextPlayers,
+      checklist: nextChecklist,
+      pay: nextPay,
+    };
+    if (nextPlayers > 0) r.playerCount = nextPlayers;
+    await r.save();
+    const bookerName = req.user?.name ? String(req.user.name) : undefined;
+    res.json({
+      success: true,
+      teamSplit: teamSplitForClient(r, bookerName),
+    });
+  } catch (err) {
+    console.error('PATCH team-split error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
 });
 
 // ─────────────────────────────────────
@@ -560,13 +797,15 @@ router.post('/:id/revalidate', protect, loadOwnedReservation, async (req, res) =
       new Date(r.lockExpiresAt) <= new Date() &&
       r.bookingStatus === BOOKING_STATUS.PENDING_PAYMENT
     ) {
-      if (daily) releaseSlotOnDaily(daily, r.slotIndex);
+      if (daily) {
+        await releaseSlotForReservation(daily._id, r.slotIndex, r._id);
+        await releaseOwnedLock(daily._id, r.slotIndex, r.user);
+      }
       r.bookingStatus = BOOKING_STATUS.EXPIRED;
       r.paymentStatus = PAYMENT_STATUS.FAILED;
       r.status = legacyStatusFromBooking(BOOKING_STATUS.EXPIRED);
       await r.save();
       await appendHistory(r._id, 'expired', 'قفل منقضی شد');
-      if (daily) await daily.save();
       return res.status(410).json({
         success: false,
         message:
@@ -591,7 +830,7 @@ router.post('/:id/revalidate', protect, loadOwnedReservation, async (req, res) =
 // ─────────────────────────────────────
 // POST /api/reservations/:id/pay  (mock — فقط توسعه)
 // ─────────────────────────────────────
-router.post('/:id/pay', protect, loadOwnedReservation, async (req, res) => {
+router.post('/:id/pay', protect, paymentLimiter, loadOwnedReservation, async (req, res) => {
   try {
     const paymentMethod = req.body?.paymentMethod || 'mock';
     const useWallet = paymentMethod === 'wallet';
@@ -609,9 +848,12 @@ router.post('/:id/pay', protect, loadOwnedReservation, async (req, res) => {
 
     const reservation = req.reservation;
     if (reservation.paymentStatus === PAYMENT_STATUS.SUCCESSFUL) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'این رزرو قبلاً پرداخت شده' });
+      return res.json({
+        success: true,
+        alreadyPaid: true,
+        message: 'این رزرو قبلاً پرداخت شده است',
+        code: reservation.code,
+      });
     }
 
     const daily = await DailyAvailability.findOne({
@@ -644,12 +886,6 @@ router.post('/:id/pay', protect, loadOwnedReservation, async (req, res) => {
       useWallet ? 'wallet' : 'mock',
     );
 
-    if (useWallet) {
-      confirmed.payment = confirmed.payment || {};
-      confirmed.payment.walletAmount = payAmount;
-      await confirmed.save();
-    }
-
     res.json({
       success: true,
       message: useWallet ? 'پرداخت با کیف پول انجام شد 🎉' : 'پرداخت تأیید شد 🎉',
@@ -660,23 +896,76 @@ router.post('/:id/pay', protect, loadOwnedReservation, async (req, res) => {
         : undefined,
     });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message || 'خطای سرور' });
+    if (req.body?.paymentMethod === 'wallet') {
+      try {
+        const current = await Reservation.findById(req.reservation._id).select(
+          'paymentStatus amount payment',
+        );
+        if (current && current.paymentStatus !== PAYMENT_STATUS.SUCCESSFUL && current.payment?.walletAmount) {
+          await Reservation.updateOne(
+            { _id: current._id },
+            { $set: { 'payment.walletAmount': null } },
+          );
+          const { creditWallet } = require('../services/walletService');
+          const refundAmt = current.payment.walletAmount || current.amount;
+          await creditWallet(req.user._id, refundAmt, 'refund', {
+            reservationId: current._id,
+            note: 'برگشت وجه؛ تأیید سانس انجام نشد',
+          });
+        }
+      } catch (refundErr) {
+        console.error('wallet refund after failed pay:', refundErr.message);
+      }
+    }
+    const status = err.statusCode === 409 || err.statusCode === 410 ? err.statusCode : 400;
+    res.status(status).json({ success: false, message: err.message || 'خطای سرور' });
   }
 });
 
 // ─────────────────────────────────────
+// GET /api/reservations/:id/cancel-preview
+// ─────────────────────────────────────
+router.get('/:id/cancel-preview', protect, loadOwnedReservation, async (req, res) => {
+  try {
+    const { reservationPaidViaWallet } = require('../services/walletService');
+    const preview = computeRefundForReservation(req.reservation);
+    const paidViaWallet = reservationPaidViaWallet(req.reservation);
+    res.json({
+      success: true,
+      ...preview,
+      policyLines: describeCancelPolicy(),
+      refundToWallet: paidViaWallet && preview.refundAmount > 0,
+      refundViaGateway:
+        preview.refundAmount > 0 &&
+        req.reservation.paymentStatus === PAYMENT_STATUS.SUCCESSFUL &&
+        !paidViaWallet,
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message || 'خطا' });
+  }
+});
+
 // POST /api/reservations/:id/cancel  (لغو با قوانین بازپرداخت)
 // ─────────────────────────────────────
 router.post('/:id/cancel', protect, loadOwnedReservation, async (req, res) => {
   try {
     const result = await cancelReservationByUser(req.reservation);
+    let walletBalance;
+    if (result.refundedToWallet) {
+      walletBalance = await require('../services/walletService').getWalletBalance(
+        req.user._id,
+      );
+    }
     res.json({
       success: true,
-      message:
-        result.refundAmount > 0
+      message: result.refundedToWallet
+        ? 'رزرو لغو شد و مبلغ به کیف پول شما برگشت.'
+        : result.refundAmount > 0
           ? 'رزرو لغو شد. بازپرداخت در حال پیگیری است.'
           : 'رزرو لغو شد.',
       refundAmount: result.refundAmount,
+      refundedToWallet: Boolean(result.refundedToWallet),
+      walletBalance,
       reservation: result.reservation,
     });
   } catch (err) {

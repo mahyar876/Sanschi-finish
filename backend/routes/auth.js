@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const { protect, signToken } = require('../middleware/authController');
-const { issueOtp, verifyOtp } = require('../lib/otpStore');
+const { issueOtp, verifyOtp, getFixedOtpCode } = require('../lib/otpStore');
 const { sendSms } = require('../services/sms');
+const { loginLimiter, registerLimiter } = require('../lib/rateLimits');
 
 // ── پاسخ با توکن ──
 function sendToken(res, user, statusCode = 200) {
@@ -31,7 +32,7 @@ function clientErrorMessage(err, fallback = 'خطای سرور') {
 // ─────────────────────────────────────
 // POST /api/auth/register
 // ─────────────────────────────────────
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   if (!isProd) {
     console.log('📥 REGISTER STARTED');
   }
@@ -77,7 +78,7 @@ router.post('/register', async (req, res) => {
 // ─────────────────────────────────────
 // POST /api/auth/login  (ایمیل + رمز)
 // ─────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -116,7 +117,7 @@ router.post('/login', async (req, res) => {
 // POST /api/auth/send-otp
 // OTP فقط تو console چاپ میشه — لوکال دستی وارد کن
 // ─────────────────────────────────────
-router.post('/send-otp', async (req, res) => {
+router.post('/send-otp', loginLimiter, async (req, res) => {
   const uniformOk = {
     success: true,
     message: 'در صورت ثبت بودن شماره، کد ارسال می‌شود',
@@ -162,7 +163,13 @@ router.post('/send-otp', async (req, res) => {
       console.warn('SMS_ENABLED=false in production — OTP not delivered');
     }
 
-    res.json(uniformOk);
+    const fixed = getFixedOtpCode();
+    const payload = { ...uniformOk };
+    if (fixed) {
+      payload.dev_otp = fixed;
+      payload.message = `کد ورود (موقت): ${fixed}`;
+    }
+    res.json(payload);
   } catch (err) {
     console.error('send-otp error:', err.message);
     res.status(500).json({ success: false, message: 'خطای سرور' });
@@ -172,7 +179,7 @@ router.post('/send-otp', async (req, res) => {
 // ─────────────────────────────────────
 // POST /api/auth/verify-otp
 // ─────────────────────────────────────
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', loginLimiter, async (req, res) => {
   try {
     const phone = String(req.body?.phone || '').trim();
     const otp = String(req.body?.otp || '').trim();

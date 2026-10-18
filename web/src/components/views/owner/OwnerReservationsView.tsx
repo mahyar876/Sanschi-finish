@@ -9,6 +9,7 @@ import { isDemoFrontend } from '@/lib/demo';
 import { priceFa } from '@/lib/format';
 import { useOwnerPitches } from '@/lib/use-owner-pitches';
 import { displayStatusFa, statusBadgeClass } from '@/lib/reservation-status';
+import { displaySlotTime } from '@/lib/slot-time';
 
 type Reservation = {
   _id: string;
@@ -177,7 +178,8 @@ export function OwnerReservationsView() {
         {lookupResult && (
           <div className="owner-lookup-result">
             <p>
-              <strong>{lookupResult.code}</strong> · {lookupResult.date} · {lookupResult.slotTime}
+              <strong>{lookupResult.code}</strong> · {lookupResult.date} ·{' '}
+              {displaySlotTime(lookupResult.slotTime)}
             </p>
             <p className="muted-sm">
               {displayStatusFa(lookupResult.status, lookupResult.bookingStatus)}
@@ -248,7 +250,7 @@ export function OwnerReservationsView() {
                     <span className="muted-sm owner-card-sub">{r.user?.phone}</span>
                   </td>
                   <td data-label="تاریخ">{r.date}</td>
-                  <td data-label="سانس">{r.slotTime}</td>
+                  <td data-label="سانس">{displaySlotTime(r.slotTime)}</td>
                   <td data-label="مبلغ">{priceFa(r.amount)}</td>
                   <td data-label="وضعیت">
                     <span className={`badge ${statusBadgeClass(r.bookingStatus || r.status)}`}>

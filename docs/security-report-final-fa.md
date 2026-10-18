@@ -17,16 +17,20 @@
 | فرانت | OTP ۶ رقمی؛ `uiPreview` فقط غیر production |
 | وابستگی‌ها | `helmet`؛ ارتقای `nodemailer` (۳ high باقی در audit — بررسی دستی) |
 | مستندات | `deploy-security-checklist-fa.md`، `render.example.yaml` |
+| رزرو همزمان | قفل اتمی سانس، ایندекс یکتا، `assertNoSlotBookingConflict`، rate limit رزرو/پرداخت، تست `test:concurrent-booking` |
+| پشتیبانی | API تیکت + پنل بازیکن/ادمین |
 
 ## ۲. آزمون‌های اجراشده
 
 ```text
-npm run security:smoke   → 9/9 PASS (http://localhost:5000)
+npm run security:smoke        → ۱۱/۱۱ PASS (با API روشن)
+npm run test:concurrent-booking → ۱×۲۰۱ و بقیه ۴۰۹
+npm run test:flow-smoke       → register → reserve → mock pay
 ```
 
-شامل: health، admin بدون توکن، pitches بدون auth، CORS، OTP، پنالتی session.
+شامل: health، admin بدون توکن، pitches/reservations/support بدون auth، CORS، OTP، پنالتی session.
 
-**اجرا نشده (نیاز sandbox/دستی):** رزرو هم‌زمان دو کاربر، callback زرین‌پال، restore Atlas.
+**اجرا نشده (نیاز sandbox/دستی):** callback زرین‌پال، restore Atlas.
 
 ## ۳. کارهای پنل / خارج از کد
 

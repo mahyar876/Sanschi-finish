@@ -4,9 +4,10 @@ const DailyAvailability = require('../models/DailyAvailability');
 const {
   getPitchCommission,
   confirmSlotBooked,
+  assertNoSlotBookingConflict,
+  releaseSlotForReservation,
   BOOKING_STATUS,
   PAYMENT_STATUS,
-  legacyStatusFromBooking,
 } = require('./slotService');
 const { appendHistory } = require('./bookingHistory');
 
@@ -37,9 +38,39 @@ async function confirmReservationPayment(reservation, refId, method = 'zarinpal'
       : getPitchCommission(pitch);
 
   const paidAt = new Date();
-  const transactionId = method === 'zarinpal' ? 'ZP-' + refId : 'TXN-' + refId;
+  const walletPart = existing.payment?.walletAmount || 0;
+  const payMethod =
+    method === 'zarinpal' && walletPart > 0
+      ? 'mixed'
+      : method === 'zarinpal'
+        ? 'zarinpal'
+        : method;
+  const transactionId =
+    payMethod === 'zarinpal' || payMethod === 'mixed'
+      ? 'ZP-' + refId
+      : 'TXN-' + refId;
   const siteCommission = commission;
   const pitchAmount = Math.max(0, existing.amount - commission);
+
+  await assertNoSlotBookingConflict(
+    existing.pitch,
+    existing.date,
+    existing.slotIndex,
+    existing._id,
+  );
+
+  const daily = await DailyAvailability.findOne({
+    pitch: existing.pitch,
+    date: existing.date,
+  });
+  if (daily) {
+    await confirmSlotBooked(
+      daily,
+      existing.slotIndex,
+      existing.user,
+      existing._id,
+    );
+  }
 
   const updated = await Reservation.findOneAndUpdate(
     {
@@ -62,7 +93,7 @@ async function confirmReservationPayment(reservation, refId, method = 'zarinpal'
         siteCommission,
         pitchAmount,
         'payment.transactionId': transactionId,
-        'payment.method': method,
+        'payment.method': payMethod,
         'payment.paidAt': paidAt,
       },
     },
@@ -74,20 +105,16 @@ async function confirmReservationPayment(reservation, refId, method = 'zarinpal'
     if (again?.paymentStatus === PAYMENT_STATUS.SUCCESSFUL) {
       return { already: true, reservation: again };
     }
+    if (daily) {
+      const stillUnpaid = await Reservation.findOne({
+        _id: reservationId,
+        paymentStatus: { $ne: PAYMENT_STATUS.SUCCESSFUL },
+      }).select('_id');
+      if (stillUnpaid) {
+        await releaseSlotForReservation(daily._id, existing.slotIndex, existing._id);
+      }
+    }
     throw new Error('این رزرو دیگر قابل پرداخت نیست');
-  }
-
-  const daily = await DailyAvailability.findOne({
-    pitch: updated.pitch,
-    date: updated.date,
-  });
-  if (daily) {
-    await confirmSlotBooked(
-      daily,
-      updated.slotIndex,
-      updated.user,
-      updated._id,
-    );
   }
 
   await appendHistory(
@@ -97,8 +124,12 @@ async function confirmReservationPayment(reservation, refId, method = 'zarinpal'
     { refId, method },
   );
 
-  const { notifyBookingConfirmed } = require('./notify');
-  await notifyBookingConfirmed(updated);
+  try {
+    const { notifyBookingConfirmed } = require('./notify');
+    await notifyBookingConfirmed(updated);
+  } catch (notifyErr) {
+    console.error('notifyBookingConfirmed failed:', notifyErr.message);
+  }
 
   return { already: false, reservation: updated };
 }

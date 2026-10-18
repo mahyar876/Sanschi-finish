@@ -7,7 +7,7 @@ const cors = require('cors');
 const compression = require('compression');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
-const { authLimiter, apiLimiter } = require('./lib/rateLimits');
+const { apiLimiter } = require('./lib/rateLimits');
 
 dotenv.config();
 
@@ -65,12 +65,13 @@ app.use(
 
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '4mb' }));
 
-app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
 const path = require('path');
-app.use(express.static(path.join(__dirname, '../frontend/pages')));
-app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
+if (!isProd) {
+  app.use(express.static(path.join(__dirname, '../frontend/pages')));
+  app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
+}
 
 // ── ROUTES ──
 app.use('/api/auth', require('./routes/auth'));
@@ -86,6 +87,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/wallet', require('./routes/wallet'));
 app.use('/api/owner-applications', require('./routes/ownerApplications'));
 app.use('/api/assistant', require('./routes/assistant'));
+app.use('/api/support', require('./routes/support'));
 
 // ── HEALTH ──
 app.get('/api/health', (req, res) => {

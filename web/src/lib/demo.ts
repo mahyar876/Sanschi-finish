@@ -23,7 +23,7 @@ export function showDevQuickLogin(): boolean {
   return isDemoFrontend() || process.env.NODE_ENV === 'development';
 }
 
-export const DEMO_OTP = '1234';
+export const DEMO_OTP = '123456';
 
 /** شماره مالک / مدیر پلتفرم (پنل ادمین) */
 export const SITE_OWNER_PHONE = '09337752754';

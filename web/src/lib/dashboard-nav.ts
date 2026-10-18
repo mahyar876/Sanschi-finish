@@ -60,6 +60,8 @@ export const ADMIN_NAV: NavGroup[] = [
 
       { href: '/admin/reservations', label: 'رزروها' },
 
+      { href: '/admin/support', label: 'تیکت پشتیبانی' },
+
       { href: '/admin/partner-requests', label: 'درخواست همکاری' },
 
       { href: '/admin/owners', label: 'مالکیت زمین‌ها' },
@@ -273,6 +275,8 @@ export const PLAYER_NAV: NavGroup[] = [
     items: [
 
       { href: '/player/notifications', label: 'اعلان‌ها' },
+
+      { href: '/player/support', label: 'پشتیبانی / تیکت' },
 
       { href: '/player/profile', label: 'پروفایل و تنظیمات' },
 

@@ -13,34 +13,62 @@ type Props = {
 
 type LeafletModule = typeof import('leaflet');
 
+function sameCoords(
+  a: { lat: number; lng: number } | null,
+  b: { lat: number; lng: number },
+  eps = 1e-7,
+) {
+  if (!a) return false;
+  return Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps;
+}
+
 export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressResolved }: Props) {
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import('leaflet').Map | null>(null);
   const markerRef = useRef<import('leaflet').Marker | null>(null);
   const leafletRef = useRef<LeafletModule | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const [search, setSearch] = useState(addressHint || '');
   const [geoMsg, setGeoMsg] = useState('');
   const [geoBusy, setGeoBusy] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
-  const placeMarker = useCallback(
+  /** فقط نشانگر روی نقشه — بدون setState والد (جلوگیری از حلقهٔ بی‌نهایت) */
+  const syncMarkerVisual = useCallback(
     (L: LeafletModule, position: { lat: number; lng: number }, fly = true) => {
       if (!mapRef.current) return;
-      onChange({ lat: position.lat, lng: position.lng });
       if (!markerRef.current) {
         markerRef.current = L.marker([position.lat, position.lng], { draggable: true }).addTo(
           mapRef.current,
         );
         markerRef.current.on('dragend', () => {
           const ll = markerRef.current?.getLatLng();
-          if (ll) onChange({ lat: ll.lat, lng: ll.lng });
+          if (!ll) return;
+          const next = { lat: ll.lat, lng: ll.lng };
+          const cur = parseCoords(lat, lng);
+          if (sameCoords(cur, next)) return;
+          onChangeRef.current(next);
         });
       } else {
         markerRef.current.setLatLng([position.lat, position.lng]);
       }
       if (fly) mapRef.current.setView([position.lat, position.lng], 16, { animate: true });
     },
-    [onChange],
+    [lat, lng],
+  );
+
+  const applyUserPosition = useCallback(
+    (L: LeafletModule, position: { lat: number; lng: number }, fly = true) => {
+      const cur = parseCoords(lat, lng);
+      if (sameCoords(cur, position)) {
+        syncMarkerVisual(L, position, fly);
+        return;
+      }
+      syncMarkerVisual(L, position, fly);
+      onChangeRef.current({ lat: position.lat, lng: position.lng });
+    },
+    [lat, lng, syncMarkerVisual],
   );
 
   useEffect(() => {
@@ -72,11 +100,11 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
       }).addTo(map);
 
       map.on('click', (e: import('leaflet').LeafletMouseEvent) => {
-        placeMarker(L, { lat: e.latlng.lat, lng: e.latlng.lng });
+        applyUserPosition(L, { lat: e.latlng.lat, lng: e.latlng.lng });
       });
 
       if (parseCoords(lat, lng)) {
-        placeMarker(L, { lat: lat!, lng: lng! }, false);
+        syncMarkerVisual(L, { lat: lat!, lng: lng! }, false);
       }
 
       mapRef.current = map;
@@ -102,8 +130,10 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
       markerRef.current = null;
       return;
     }
-    placeMarker(L, coords, false);
-  }, [lat, lng, mapReady, placeMarker]);
+    const ll = markerRef.current?.getLatLng();
+    if (ll && sameCoords({ lat: ll.lat, lng: ll.lng }, coords)) return;
+    syncMarkerVisual(L, coords, false);
+  }, [lat, lng, mapReady, syncMarkerVisual]);
 
   useEffect(() => {
     if (addressHint) setSearch(addressHint);
@@ -131,8 +161,8 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
         return;
       }
       const L = leafletRef.current;
-      if (L) placeMarker(L, { lat: data.lat, lng: data.lng });
-      else onChange({ lat: data.lat, lng: data.lng });
+      if (L) applyUserPosition(L, { lat: data.lat, lng: data.lng });
+      else onChangeRef.current({ lat: data.lat, lng: data.lng });
       if (data.label) onAddressResolved?.(data.label);
       setGeoMsg('✓ روی نقشه نشان داده شد — ذخیره را بزنید');
     } catch {
@@ -151,8 +181,8 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
       (pos) => {
         const L = leafletRef.current;
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        if (L) placeMarker(L, p);
-        else onChange(p);
+        if (L) applyUserPosition(L, p);
+        else onChangeRef.current(p);
         setGeoMsg('موقعیت فعلی شما روی نقشه');
       },
       () => setGeoMsg('دسترسی به موقعیت رد شد'),
@@ -203,10 +233,10 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
             onChange={(e) => {
               const v = e.target.value;
               if (!v) {
-                onChange({ lat: undefined, lng: undefined });
+                onChangeRef.current({ lat: undefined, lng: undefined });
                 return;
               }
-              onChange({
+              onChangeRef.current({
                 lat: parseFloat(v),
                 lng: typeof lng === 'number' ? lng : DEFAULT_MAP_CENTER.lng,
               });
@@ -222,10 +252,10 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
             onChange={(e) => {
               const v = e.target.value;
               if (!v) {
-                onChange({ lat: undefined, lng: undefined });
+                onChangeRef.current({ lat: undefined, lng: undefined });
                 return;
               }
-              onChange({
+              onChangeRef.current({
                 lat: typeof lat === 'number' ? lat : DEFAULT_MAP_CENTER.lat,
                 lng: parseFloat(v),
               });
@@ -237,7 +267,7 @@ export function MapLocationPicker({ lat, lng, onChange, addressHint, onAddressRe
         <button
           type="button"
           className="btn btn-ghost btn-sm"
-          onClick={() => onChange({ lat: undefined, lng: undefined })}
+          onClick={() => onChangeRef.current({ lat: undefined, lng: undefined })}
         >
           حذف موقعیت
         </button>

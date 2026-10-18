@@ -58,17 +58,15 @@ export function LoginView() {
     }
     setLoading(true);
     try {
-      const data = await apiFetch<{ success: boolean; message?: string }>(
+      const data = await apiFetch<{ success: boolean; message?: string; dev_otp?: string }>(
         '/auth/send-otp',
         { method: 'POST', body: JSON.stringify({ phone }) },
       );
       if (!data.success) throw new Error(data.message);
       setOtpSent(true);
-      if (process.env.NODE_ENV !== 'production') {
-        setOtpDevHint(
-          'در حالت توسعه، کد ۶ رقمی در لاگ سرور چاپ می‌شود (یا با SMS_ENABLED=true از پیامک).',
-        );
-      }
+      const hintCode = data.dev_otp || DEMO_OTP;
+      setOtpDevHint(`کد ورود: ${hintCode}`);
+      if (hintCode.length === 6) setOtp(hintCode);
     } catch (e) {
       if (isDemoFrontend()) {
         setOtpSent(true);
@@ -253,9 +251,10 @@ export function LoginView() {
                       </p>
                     ) : (
                       <p className="form-msg" style={{ color: 'var(--text-muted)' }}>
-                        {isDemoFrontend()
-                          ? `حالت نمایشی: کد ${DEMO_OTP} را وارد کنید.`
-                          : 'کد پیامک می‌شود؛ اگر SMS فعال نباشد، کد بالا نمایش داده می‌شود.'}
+                        {otpDevHint ||
+                          (isDemoFrontend()
+                            ? `کد ${DEMO_OTP}`
+                            : `کد موقت: ${DEMO_OTP}`)}
                       </p>
                     )}
                   </div>

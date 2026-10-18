@@ -24,6 +24,12 @@ export type SiteSettings = {
 
   homeFeaturedPlacements: HomeFeaturedPlacement[];
 
+  supportEmail?: string;
+
+  supportPhone?: string;
+
+  supportPhoneDisplay?: string;
+
   updatedAt?: string;
 
 };
@@ -122,6 +128,12 @@ function parseSiteSettingsPayload(data: {
 
   homeFeaturedPlacements?: unknown;
 
+  supportEmail?: string;
+
+  supportPhone?: string;
+
+  supportPhoneDisplay?: string;
+
   updatedAt?: string;
 
 }): SiteSettings | null {
@@ -133,6 +145,14 @@ function parseSiteSettingsPayload(data: {
     homeVenuePreviewCount: clampPreviewCount(data.homeVenuePreviewCount),
 
     homeFeaturedPlacements: normalizePlacements(data.homeFeaturedPlacements),
+
+    supportEmail: typeof data.supportEmail === 'string' ? data.supportEmail : undefined,
+
+    supportPhone: typeof data.supportPhone === 'string' ? data.supportPhone : undefined,
+
+    supportPhoneDisplay:
+
+      typeof data.supportPhoneDisplay === 'string' ? data.supportPhoneDisplay : undefined,
 
     updatedAt: data.updatedAt,
 
@@ -160,6 +180,12 @@ function loadLocalSiteSettings(): SiteSettings | null {
 
       homeFeaturedPlacements: normalizePlacements(parsed.homeFeaturedPlacements),
 
+      supportEmail: parsed.supportEmail,
+
+      supportPhone: parsed.supportPhone,
+
+      supportPhoneDisplay: parsed.supportPhoneDisplay,
+
       updatedAt: parsed.updatedAt,
 
     };
@@ -183,6 +209,12 @@ function saveLocalSiteSettings(settings: SiteSettings) {
     homeVenuePreviewCount: clampPreviewCount(settings.homeVenuePreviewCount),
 
     homeFeaturedPlacements: normalizePlacements(settings.homeFeaturedPlacements),
+
+    supportEmail: settings.supportEmail,
+
+    supportPhone: settings.supportPhone,
+
+    supportPhoneDisplay: settings.supportPhoneDisplay,
 
     updatedAt: new Date().toISOString(),
 
@@ -300,6 +332,12 @@ export async function saveAdminSiteSettings(
 
     homeFeaturedPlacements: normalizePlacements(settings.homeFeaturedPlacements),
 
+    supportEmail: settings.supportEmail,
+
+    supportPhone: settings.supportPhone,
+
+    supportPhoneDisplay: settings.supportPhoneDisplay,
+
   };
 
   try {
@@ -311,6 +349,12 @@ export async function saveAdminSiteSettings(
       homeVenuePreviewCount?: number;
 
       homeFeaturedPlacements?: HomeFeaturedPlacement[];
+
+      supportEmail?: string;
+
+      supportPhone?: string;
+
+      supportPhoneDisplay?: string;
 
       updatedAt?: string;
 

@@ -10,6 +10,7 @@ import {
   StatCard,
   StatGrid,
 } from '@/components/dashboard/DashboardPageBlocks';
+import { displaySlotTime } from '@/lib/slot-time';
 import { apiFetch } from '@/lib/fetch-api';
 import {
   cancelDemoReservation,
@@ -136,7 +137,7 @@ export function ProfileView() {
 
       <DataSection title="رزروهای من">
       <div className="data-table-wrap">
-        <table className="data-table">
+        <table className="data-table responsive-stack">
           <thead>
             <tr>
               <th>کد</th>
@@ -161,15 +162,15 @@ export function ProfileView() {
             )}
             {reservations.map((r) => (
               <tr key={r._id}>
-                <td>{r.code}</td>
-                <td>{r.pitch?.name || '—'}</td>
-                <td>{r.date}</td>
-                <td>{r.slotTime}</td>
-                <td>{priceFa(r.amount)}</td>
-                <td>
+                <td data-label="کد">{r.code}</td>
+                <td data-label="مجموعه">{r.pitch?.name || '—'}</td>
+                <td data-label="تاریخ">{r.date}</td>
+                <td data-label="سانس">{displaySlotTime(r.slotTime)}</td>
+                <td data-label="مبلغ">{priceFa(r.amount)}</td>
+                <td data-label="وضعیت">
                   <span className={`badge ${r.status}`}>{STATUS[r.status] || r.status}</span>
                 </td>
-                <td>
+                <td className="table-actions" data-label="">
                   {r.status === 'pending' && (
                     <>
                       <Link

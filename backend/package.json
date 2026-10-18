@@ -11,7 +11,9 @@
     "seed:reviews": "node scripts/seed-reviews.js",
     "security:smoke": "node scripts/security-smoke-test.js",
     "test:assistant": "node scripts/assistant-parse.test.js",
-    "test:gallery-filters": "node scripts/gallery-filters.test.js"
+    "test:gallery-filters": "node scripts/gallery-filters.test.js",
+    "test:concurrent-booking": "node scripts/concurrent-booking.test.js",
+    "test:flow-smoke": "node scripts/flow-smoke.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

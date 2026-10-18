@@ -1,6 +1,8 @@
 const DailyAvailability = require('../models/DailyAvailability');
+const Reservation = require('../models/Reservation');
 const {
-  releaseSlotOnDaily,
+  releaseSlotForReservation,
+  releaseOwnedLock,
   BOOKING_STATUS,
   PAYMENT_STATUS,
   legacyStatusFromBooking,
@@ -24,8 +26,8 @@ async function cancelReservationByUser(reservation, now = new Date()) {
       date: reservation.date,
     });
     if (daily) {
-      releaseSlotOnDaily(daily, reservation.slotIndex);
-      await daily.save();
+      await releaseSlotForReservation(daily._id, reservation.slotIndex, reservation._id);
+      await releaseOwnedLock(daily._id, reservation.slotIndex, reservation.user);
     }
     reservation.status = 'cancelled';
     reservation.bookingStatus = BOOKING_STATUS.CANCELLED_BY_USER;
@@ -47,8 +49,7 @@ async function cancelReservationByUser(reservation, now = new Date()) {
     date: reservation.date,
   });
   if (daily) {
-    releaseSlotOnDaily(daily, reservation.slotIndex);
-    await daily.save();
+    await releaseSlotForReservation(daily._id, reservation.slotIndex, reservation._id);
   }
 
   reservation.status = legacyStatusFromBooking(
@@ -73,11 +74,34 @@ async function cancelReservationByUser(reservation, now = new Date()) {
     refund.reason + (refund.refundAmount ? ` · مبلغ بازپرداخت: ${refund.refundAmount}` : ''),
   );
   await notifyCancelled(reservation, 'user');
-  const { tryAutoRefund } = require('./refundService');
+  const {
+    tryAutoRefund,
+    executeRefundForReservation,
+  } = require('./refundService');
+  const { reservationPaidViaWallet } = require('./walletService');
+
+  let refundedToWallet = false;
+  if (
+    reservation.bookingStatus === BOOKING_STATUS.REFUND_PENDING &&
+    refund.refundAmount > 0 &&
+    reservationPaidViaWallet(reservation)
+  ) {
+    const fresh = await executeRefundForReservation(
+      await Reservation.findById(reservation._id),
+    );
+    refundedToWallet = true;
+    return {
+      reservation: fresh,
+      refundAmount: refund.refundAmount,
+      refund,
+      refundedToWallet,
+    };
+  }
+
   if (reservation.bookingStatus === BOOKING_STATUS.REFUND_PENDING) {
     setImmediate(() => tryAutoRefund(reservation._id));
   }
-  return { reservation, refundAmount: refund.refundAmount, refund };
+  return { reservation, refundAmount: refund.refundAmount, refund, refundedToWallet };
 }
 
 async function completeRefund(reservation) {

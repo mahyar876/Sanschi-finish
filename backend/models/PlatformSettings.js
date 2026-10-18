@@ -10,6 +10,9 @@ const PlatformSettingsSchema = new mongoose.Schema(
      * جایگاه ثابت صفحهٔ اصلی (قرارداد / تبلیغ — مثلاً یک ماه)
      * pitchId, expiresAt, note, sortOrder
      */
+    supportEmail: { type: String, default: 'support@sanschii.ir', trim: true, maxlength: 120 },
+    supportPhone: { type: String, default: '', trim: true, maxlength: 32 },
+    supportPhoneDisplay: { type: String, default: '', trim: true, maxlength: 48 },
     homeFeaturedPlacements: {
       type: [
         {

@@ -70,7 +70,7 @@ export function AdminView() {
 
       <h2 style={{ fontSize: '1rem' }}>مجموعه‌ها</h2>
       <div className="data-table-wrap" style={{ marginBottom: '1.5rem' }}>
-        <table className="data-table">
+        <table className="data-table responsive-stack">
           <thead>
             <tr>
               <th>نام</th>
@@ -82,10 +82,10 @@ export function AdminView() {
           <tbody>
             {pitches.map((p) => (
               <tr key={p._id}>
-                <td>{p.name}</td>
-                <td>{p.type}</td>
-                <td>{priceFa(p.commissionAmount ?? 0)}</td>
-                <td>{p.isActive ? 'بله' : 'خیر'}</td>
+                <td data-label="نام">{p.name}</td>
+                <td data-label="نوع">{p.type}</td>
+                <td data-label="کارمزد">{priceFa(p.commissionAmount ?? 0)}</td>
+                <td data-label="فعال">{p.isActive ? 'بله' : 'خیر'}</td>
               </tr>
             ))}
           </tbody>
@@ -94,7 +94,7 @@ export function AdminView() {
 
       <h2 style={{ fontSize: '1rem' }}>آخرین رزروها</h2>
       <div className="data-table-wrap">
-        <table className="data-table">
+        <table className="data-table responsive-stack">
           <thead>
             <tr>
               <th>کد</th>
@@ -107,11 +107,11 @@ export function AdminView() {
           <tbody>
             {reservations.map((r) => (
               <tr key={r._id}>
-                <td>{r.code}</td>
-                <td>{r.pitch?.name}</td>
-                <td>{r.user?.name}</td>
-                <td>{priceFa(r.amount)}</td>
-                <td>
+                <td data-label="کد">{r.code}</td>
+                <td data-label="مجموعه">{r.pitch?.name}</td>
+                <td data-label="کاربر">{r.user?.name}</td>
+                <td data-label="مبلغ">{priceFa(r.amount)}</td>
+                <td data-label="وضعیت">
                   <span className={`badge ${r.status}`}>{r.status}</span>
                 </td>
               </tr>

@@ -7,23 +7,28 @@ import {
   DataSection,
   PageIntro,
 } from '@/components/dashboard/DashboardPageBlocks';
-import type { Pitch, PitchSlot } from '@/lib/pitch-types';
+import type { Pitch } from '@/lib/pitch-types';
 import { fetchPitchForOwner, updatePitch } from '@/lib/pitch-service';
 import { priceFa } from '@/lib/format';
 import { useOwnerPitches } from '@/lib/use-owner-pitches';
+import { toJalaliApiDate } from '@/lib/jalali';
+import { isDemoFrontend } from '@/lib/demo';
+import { ApiError } from '@/lib/fetch-api';
+import { displaySlotTime } from '@/lib/slot-time';
+import {
+  fetchOwnerDaily,
+  patchOwnerLastMinute,
+  patchOwnerSlotBlock,
+  postOwnerManualReservation,
+  type OwnerDailySlot,
+} from '@/lib/owner-api';
 
-type SlotState = 'free' | 'reserved' | 'pending' | 'blocked';
-
-function slotState(s: PitchSlot): SlotState {
-  if (s.taken) return 'reserved';
-  return 'free';
-}
-
-const STATE_FA: Record<SlotState, string> = {
+const STATE_FA: Record<OwnerDailySlot['state'], string> = {
   free: 'آزاد',
   reserved: 'رزرو‌شده',
   pending: 'در انتظار پرداخت',
   blocked: 'مسدود',
+  past: 'گذشته',
 };
 
 export function OwnerSlotsView() {
@@ -32,16 +37,22 @@ export function OwnerSlotsView() {
   const [pitch, setPitch] = useState<Pitch | null>(null);
   const [bulkPeriod, setBulkPeriod] = useState<'morning' | 'evening' | 'all'>('morning');
   const [bulkPrice, setBulkPrice] = useState(550_000);
-  const [viewDay] = useState('امروز');
+  const [viewDate, setViewDate] = useState(() => toJalaliApiDate(new Date()));
+  const [dailySlots, setDailySlots] = useState<OwnerDailySlot[]>([]);
+  const [lastMinuteOn, setLastMinuteOn] = useState(true);
   const [msg, setMsg] = useState('');
-  const [localStates, setLocalStates] = useState<Record<number, SlotState>>({});
+  const [manualSlot, setManualSlot] = useState<OwnerDailySlot | null>(null);
+  const [manualName, setManualName] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualNote, setManualNote] = useState('');
+  const [manualBusy, setManualBusy] = useState(false);
 
   useEffect(() => {
     const q = search.get('pitch');
     if (q) setPitchId(q);
   }, [search, setPitchId]);
 
-  const load = useCallback(() => {
+  const loadPitch = useCallback(() => {
     if (!pitchId) return;
     void fetchPitchForOwner(pitchId).then((p) => {
       if (!p) {
@@ -52,21 +63,48 @@ export function OwnerSlotsView() {
       setMsg('');
       setPitch(p);
       setBulkPrice(p.price || 550_000);
+      setLastMinuteOn(p.lastMinuteEnabled !== false);
     });
   }, [pitchId]);
 
+  const loadDaily = useCallback(() => {
+    if (!pitchId || isDemoFrontend()) return;
+    void fetchOwnerDaily(pitchId, viewDate)
+      .then((d) => {
+        if (d.success) setDailySlots(d.slots);
+      })
+      .catch(() => {
+        setMsg('بارگذاری سانس روز ناموفق بود');
+      });
+  }, [pitchId, viewDate]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    loadPitch();
+  }, [loadPitch]);
+
+  useEffect(() => {
+    loadDaily();
+  }, [loadDaily]);
 
   const slots = pitch?.slots ?? [];
 
   const grid = useMemo(() => {
-    return slots.map((s, i) => {
-      const st = localStates[i] ?? slotState(s);
-      return { ...s, index: i, state: st };
-    });
-  }, [slots, localStates]);
+    if (dailySlots.length > 0) return dailySlots;
+    return slots.map((s, i) => ({
+      slotIndex: i,
+      time: s.time,
+      price: s.price,
+      state: (s.taken ? 'reserved' : 'free') as OwnerDailySlot['state'],
+      blocked: false,
+      reservationCode: null,
+      customerName: null,
+      customerPhone: null,
+      flashEligible: false,
+      hoursUntil: null,
+    }));
+  }, [dailySlots, slots]);
+
+  const flashCount = grid.filter((s) => s.flashEligible).length;
 
   function applyBulk() {
     if (!pitch) return;
@@ -85,23 +123,77 @@ export function OwnerSlotsView() {
     if (!pitch) return;
     await updatePitch(pitch._id, { slots: pitch.slots });
     setMsg('✓ سانس‌ها ذخیره شد');
-    load();
+    loadPitch();
   }
 
-  function cycleState(i: number) {
-    const order: SlotState[] = ['free', 'pending', 'reserved', 'blocked'];
-    const cur = localStates[i] ?? slotState(slots[i]);
-    const next = order[(order.indexOf(cur) + 1) % order.length];
-    setLocalStates((prev) => ({ ...prev, [i]: next }));
-    if (pitch && next === 'free') {
-      const updated = [...pitch.slots];
-      updated[i] = { ...updated[i], taken: false };
-      setPitch({ ...pitch, slots: updated });
+  async function toggleBlock(s: OwnerDailySlot) {
+    if (!pitchId || isDemoFrontend()) {
+      setMsg('مسدودسازی در حالت نمایشی فعال نیست');
+      return;
     }
-    if (pitch && next === 'reserved') {
-      const updated = [...pitch.slots];
-      updated[i] = { ...updated[i], taken: true };
-      setPitch({ ...pitch, slots: updated });
+    const blocked = s.state !== 'blocked';
+    try {
+      await patchOwnerSlotBlock(pitchId, {
+        date: viewDate,
+        slotIndex: s.slotIndex,
+        blocked,
+      });
+      setMsg(blocked ? 'سانس مسدود شد' : 'سانس آزاد شد');
+      loadDaily();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : 'خطا');
+    }
+  }
+
+  async function submitManual() {
+    if (!pitchId || !manualSlot) return;
+    setManualBusy(true);
+    setMsg('');
+    try {
+      const data = await postOwnerManualReservation(pitchId, {
+        date: viewDate,
+        slotIndex: manualSlot.slotIndex,
+        customerName: manualName.trim(),
+        customerPhone: manualPhone.trim(),
+        note: manualNote.trim() || undefined,
+      });
+      setMsg(`✓ ${data.message} — کد: ${data.reservation.code}`);
+      setManualSlot(null);
+      setManualName('');
+      setManualPhone('');
+      setManualNote('');
+      loadDaily();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : 'ثبت رزرو ناموفق');
+    } finally {
+      setManualBusy(false);
+    }
+  }
+
+  async function toggleLastMinute() {
+    if (!pitchId || isDemoFrontend()) return;
+    const next = !lastMinuteOn;
+    try {
+      const d = await patchOwnerLastMinute(pitchId, next);
+      setLastMinuteOn(d.lastMinuteEnabled);
+      setMsg(next ? 'تخفیف لحظه‌آخر فعال شد' : 'تخفیف لحظه‌آخر غیرفعال شد');
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : 'خطا');
+    }
+  }
+
+  function onSlotClick(s: OwnerDailySlot) {
+    if (s.state === 'past') return;
+    if (s.state === 'free') {
+      setManualSlot(s);
+      return;
+    }
+    if (s.state === 'blocked' || s.blocked) {
+      void toggleBlock(s);
+      return;
+    }
+    if (s.reservationCode) {
+      setMsg(`رزرو: ${s.reservationCode}${s.customerName ? ` — ${s.customerName}` : ''}`);
     }
   }
 
@@ -109,7 +201,7 @@ export function OwnerSlotsView() {
     <>
       <PageIntro
         title="مدیریت سانس‌ها"
-        description="نمای روزانه، قیمت‌گذاری و مدیریت سریع وضعیت هر سانس."
+        description="تقویم روزانه، رزرو تلفنی، مسدود کردن سانس و تخفیف لحظه‌آخر."
       />
       {msg && <p className="notice">{msg}</p>}
       {pitches.length > 1 && (
@@ -130,9 +222,35 @@ export function OwnerSlotsView() {
       )}
       {pitch && (
         <>
-          <ActionsPanel title={`تقویم روزانه — ${viewDay}`}>
+          <div className="owner-tools-panel panel" style={{ marginBottom: '1rem' }}>
+            <div className="field owner-tools-field">
+              <label htmlFor="owner-slots-date">تاریخ (جلالی)</label>
+              <input
+                id="owner-slots-date"
+                value={viewDate}
+                onChange={(e) => setViewDate(e.target.value)}
+                placeholder="1404/07/18"
+                dir="ltr"
+                className="owner-date-input"
+              />
+            </div>
+            {flashCount > 0 && (
+              <p className="owner-lm-hint">
+                {flashCount} سانس خالی در ۲۴ ساعت آینده — با تخفیف لحظه‌آخر سریع‌تر پر می‌شوند.
+              </p>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => void toggleLastMinute()}
+            >
+              تخفیف لحظه‌آخر: {lastMinuteOn ? 'فعال' : 'غیرفعال'}
+            </button>
+          </div>
+
+          <ActionsPanel title={`تقویم — ${viewDate}`}>
             <div className="slot-legend">
-              {(['free', 'pending', 'reserved', 'blocked'] as SlotState[]).map((k) => (
+              {(['free', 'pending', 'reserved', 'blocked', 'past'] as const).map((k) => (
                 <span key={k} className={`slot-chip state-${k}`}>
                   {STATE_FA[k]}
                 </span>
@@ -141,22 +259,91 @@ export function OwnerSlotsView() {
             <div className="slot-day-grid">
               {grid.map((s) => (
                 <button
-                  key={s.index}
+                  key={s.slotIndex}
                   type="button"
-                  className={`slot-day-card state-${s.state}`}
-                  onClick={() => cycleState(s.index)}
+                  className={`slot-day-card state-${s.state}${s.flashEligible ? ' slot-flash' : ''}`}
+                  onClick={() => onSlotClick(s)}
+                  disabled={s.state === 'past'}
                 >
-                  <span className="slot-day-time">{s.time}</span>
+                  <span className="slot-day-time">{displaySlotTime(s.time)}</span>
                   <span className="slot-day-price">{priceFa(s.price)}</span>
                   <span className="slot-day-state">{STATE_FA[s.state]}</span>
+                  {s.reservationCode && (
+                    <span className="slot-day-code muted-sm">{s.reservationCode}</span>
+                  )}
+                  {s.flashEligible && <span className="slot-day-flash">Flash</span>}
                 </button>
               ))}
             </div>
             <p className="muted-sm" style={{ marginTop: '0.65rem' }}>
-              برای تغییر سریع وضعیت روی هر کارت بزنید.
+              روی سانس <strong>آزاد</strong> بزنید → رزرو تلفنی. روی <strong>مسدود</strong> →
+              آزاد کردن. برای مسدود کردن سانس آزاد از دکمه زیر کارت استفاده کنید.
             </p>
           </ActionsPanel>
-          <ActionsPanel title="تغییر دسته‌جمعی قیمت">
+
+          {manualSlot && (
+            <section className="panel owner-manual-panel" aria-labelledby="owner-manual-title">
+              <h2 id="owner-manual-title" className="panel-title">
+                رزرو تلفنی / حضوری — {manualSlot.time}
+              </h2>
+              <div className="owner-manual-grid">
+                <div className="field">
+                  <label htmlFor="manual-name">نام مشتری</label>
+                  <input
+                    id="manual-name"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="مثلاً علی رضایی"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="manual-phone">موبایل</label>
+                  <input
+                    id="manual-phone"
+                    value={manualPhone}
+                    onChange={(e) => setManualPhone(e.target.value)}
+                    placeholder="09121234567"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="field owner-manual-note">
+                  <label htmlFor="manual-note">یادداشت (اختیاری)</label>
+                  <input
+                    id="manual-note"
+                    value={manualNote}
+                    onChange={(e) => setManualNote(e.target.value)}
+                    placeholder="پرداخت نقدی، تیم ثابت…"
+                  />
+                </div>
+              </div>
+              <div className="owner-inline-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={manualBusy}
+                  onClick={() => void submitManual()}
+                >
+                  {manualBusy ? '…' : 'ثبت و رزرو سانس'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => void toggleBlock(manualSlot)}
+                >
+                  فقط مسدود کردن
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setManualSlot(null)}
+                >
+                  انصراف
+                </button>
+              </div>
+            </section>
+          )}
+
+          <ActionsPanel title="تغییر دسته‌جمعی قیمت (الگوی زمین)">
             <div className="bulk-row">
               <div className="field bulk-field">
                 <label>بازه</label>
@@ -186,24 +373,28 @@ export function OwnerSlotsView() {
             </div>
           </ActionsPanel>
           <DataSection title="جدول سانس">
-            <div className="data-table-wrap">
-              <table className="data-table">
+            <div className="data-table-wrap owner-card-table-wrap">
+              <table className="data-table owner-card-table">
                 <thead>
                   <tr>
                     <th>#</th>
                     <th>بازه</th>
                     <th>قیمت</th>
                     <th>وضعیت</th>
+                    <th>مشتری</th>
                   </tr>
                 </thead>
                 <tbody>
                   {grid.map((s) => (
-                    <tr key={s.index}>
-                      <td>{s.index + 1}</td>
-                      <td>{s.time}</td>
-                      <td>{priceFa(s.price)}</td>
-                      <td>
+                    <tr key={s.slotIndex}>
+                      <td data-label="#">{s.slotIndex + 1}</td>
+                      <td data-label="بازه">{displaySlotTime(s.time)}</td>
+                      <td data-label="قیمت">{priceFa(s.price)}</td>
+                      <td data-label="وضعیت">
                         <span className={`slot-chip state-${s.state}`}>{STATE_FA[s.state]}</span>
+                      </td>
+                      <td data-label="مشتری" className="muted-sm">
+                        {s.customerName || s.customerPhone || '—'}
                       </td>
                     </tr>
                   ))}

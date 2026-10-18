@@ -87,7 +87,7 @@ export function AdminReservationsPage() {
       </ActionsPanel>
       <DataSection title="لیست رزرو">
         <div className="data-table-wrap">
-          <table className="data-table">
+          <table className="data-table responsive-stack">
             <thead>
               <tr>
                 <th>کد</th>
@@ -101,14 +101,14 @@ export function AdminReservationsPage() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r._id}>
-                  <td>{r.code}</td>
-                  <td>{r.pitch?.name}</td>
-                  <td>{r.user?.name}</td>
-                  <td>{priceFa(r.amount)}</td>
-                  <td>
+                  <td data-label="کد">{r.code}</td>
+                  <td data-label="مجموعه">{r.pitch?.name}</td>
+                  <td data-label="کاربر">{r.user?.name}</td>
+                  <td data-label="مبلغ">{priceFa(r.amount)}</td>
+                  <td data-label="وضعیت">
                     <span className={`badge ${r.status}`}>{r.status}</span>
                   </td>
-                  <td className="table-actions">
+                  <td className="table-actions" data-label="">
                     {r.status === 'pending' && (
                       <>
                         <button

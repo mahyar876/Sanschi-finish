@@ -10,6 +10,7 @@ import { DEFAULT_CATEGORY_IMAGE } from '@/lib/venue-images';
 import { inferTehranZone } from '@/lib/tehran-zones';
 import { numFa } from '@/lib/jalali';
 import { DEFAULT_SLOT_TIMES } from '@/lib/pitch-types';
+import { displaySlotTime } from '@/lib/slot-time';
 
 type RecommendResult = {
   pitchId: string;
@@ -196,8 +197,8 @@ export function BookingAssistantView({ variant = 'page' }: BookingAssistantViewP
         reserveHref: `/reserve?${q.toString()}`,
         availLabel:
           r.slot.durationHours && r.slot.durationHours > 1
-            ? `سانس ${r.slot.time} · ${numFa(r.slot.durationHours)} ساعت`
-            : `سانس ${r.slot.time}`,
+            ? `سانس ${displaySlotTime(r.slot.time)} · ${numFa(r.slot.durationHours)} ساعت`
+            : `سانس ${displaySlotTime(r.slot.time)}`,
       };
     });
   }, [results, catalogById, intentDate]);

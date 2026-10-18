@@ -55,6 +55,26 @@ async function main() {
     `status=${pitchCreate.status}`,
   );
 
+  const reserveNoAuth = await req('/api/reservations', {
+    method: 'POST',
+    body: JSON.stringify({ pitchId: '507f1f77bcf86cd799439011', slotIndex: 0, date: '1404/01/01' }),
+  });
+  record(
+    'POST /api/reservations without token blocked',
+    reserveNoAuth.status === 401,
+    `status=${reserveNoAuth.status}`,
+  );
+
+  const supportNoAuth = await req('/api/support/tickets', {
+    method: 'POST',
+    body: JSON.stringify({ subject: 'test', message: 'hello world test' }),
+  });
+  record(
+    'POST /api/support/tickets without token blocked',
+    supportNoAuth.status === 401,
+    `status=${supportNoAuth.status}`,
+  );
+
   const badOrigin = await fetch(`${BASE}/api/pitches`, {
     method: 'GET',
     headers: { Origin: 'https://evil.example' },

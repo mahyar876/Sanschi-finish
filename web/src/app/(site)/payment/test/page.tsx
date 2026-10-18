@@ -24,21 +24,38 @@ export default function PaymentTestPage() {
         <p className="eyebrow">فقط تست</p>
         <h1>پرداخت آزمایشی</h1>
         <p className="subtitle">
-          بدون رزرو واقعی — برای امتحان درگاه mock، کد تخفیف و UI پرداخت.
+          در حالت development پرداخت واقعی هم بدون زرین‌پال انجام می‌شود — برای تست کامل
+          جریان رزرو + پنل بازیکن.
         </p>
       </header>
       <div className="panel">
+        <h2 className="h6" style={{ marginTop: 0 }}>
+          مسیر پیشنهادی (رزرو واقعی روی Mongo)
+        </h2>
+        <ol className="muted-sm" style={{ margin: 0, paddingRight: '1.25rem', lineHeight: 1.75 }}>
+          <li>backend روی پورت ۵۰۰۰ و web روی ۳۰۰۰</li>
+          <li>
+            در <code>backend/.env</code> مقدار <code>ALLOW_MOCK_PAY=true</code> (پیش‌فرض example)
+          </li>
+          <li>ورود / ثبت‌نام → رزرو سانس → صفحه پرداخت</li>
+          <li>
+            دکمه <strong>«پرداخت آزمایشی (بدون درگاه)»</strong> — رزرو paid می‌شود و در پنل
+            بازیکن دیده می‌شود
+          </li>
+        </ol>
+        <h2 className="h6" style={{ marginTop: '1.25rem' }}>
+          فقط UI (بدون رزرو در دیتابیس)
+        </h2>
         <ul className="muted-sm" style={{ margin: 0, paddingRight: '1.1rem', lineHeight: 1.7 }}>
           <li>مبلغ نمونه: ۵۲۰٬۰۰۰ تومان</li>
-          <li>کدهای ادمین (مثل STORY20) یا کد پنالتی در همان صفحه قابل تست است</li>
-          <li>دکمه «پرداخت آزمایشی» رزرو را شبیه‌سازی می‌کند</li>
+          <li>کد تخفیف و چک‌لیست تیم روی همین صفحه</li>
         </ul>
         <div className="hero-actions" style={{ marginTop: '1.25rem' }}>
-          <Link href={`/payment?${TEST_QUERY}`} className="btn btn-primary">
-            ورود به صفحه پرداخت mock
+          <Link href="/reserve" className="btn btn-primary">
+            شروع رزرو واقعی (تست)
           </Link>
-          <Link href="/reserve" className="btn btn-secondary">
-            رزرو واقعی
+          <Link href={`/payment?${TEST_QUERY}`} className="btn btn-secondary">
+            UI mock بدون Mongo
           </Link>
         </div>
       </div>

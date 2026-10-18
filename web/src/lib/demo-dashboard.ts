@@ -76,6 +76,7 @@ export function getDemoOwnerDashboardStats(pitchId?: string) {
     revenueToday,
     revenueMonth,
     emptySlots,
+    emptySoon: Math.min(3, emptySlots),
     pending,
     pitchName: pitchId ? undefined : getDemoOwnerPitches()[0]?.name,
   };

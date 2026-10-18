@@ -44,8 +44,12 @@ function pagesFromNav(groups: NavGroup[]): PageDef[] {
 const PUBLIC_PAGES: PageDef[] = [
   { id: 'home', title: 'خانه', path: withUiPreview('/') },
   { id: 'gallery', title: 'گالری زمین‌ها', path: withUiPreview('/gallery') },
+  { id: 'assistant', title: 'دستیار رزرو', path: withUiPreview('/assistant') },
   { id: 'reserve', title: 'رزرو سانس', path: withUiPreview('/reserve') },
+  { id: 'for-owners', title: 'همکاری / مالک', path: withUiPreview('/for-owners') },
   { id: 'about', title: 'درباره ما', path: withUiPreview('/about') },
+  { id: 'terms', title: 'قوانین', path: withUiPreview('/terms') },
+  { id: 'privacy', title: 'حریم خصوصی', path: withUiPreview('/privacy') },
   { id: 'login', title: 'ورود / ثبت‌نام', path: withUiPreview('/login') },
   { id: 'penalty', title: 'بازی پنالتی', path: withUiPreview('/penalty') },
   {

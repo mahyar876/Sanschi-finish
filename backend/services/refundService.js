@@ -7,6 +7,10 @@ const {
 const { completeRefund } = require('./cancelReservation');
 const { appendHistory } = require('./bookingHistory');
 const { BOOKING_STATUS } = require('../lib/bookingConstants');
+const {
+  creditWalletRefundOnce,
+  reservationPaidViaWallet,
+} = require('./walletService');
 function extractRefId(reservation) {
   const tid = reservation.payment?.transactionId || '';
   if (tid.startsWith('ZP-')) return tid.slice(3);
@@ -21,6 +25,21 @@ async function executeRefundForReservation(reservation) {
   const refundToman = reservation.refundAmount || 0;
   if (refundToman <= 0) {
     return completeRefund(reservation);
+  }
+
+  if (reservationPaidViaWallet(reservation)) {
+    await creditWalletRefundOnce(
+      reservation.user,
+      reservation._id,
+      refundToman,
+      `بازگشت وجه لغو رزرو ${reservation.code || reservation._id}`,
+    );
+    reservation.payment = reservation.payment || {};
+    reservation.payment.refundId = 'WALLET';
+    await reservation.save();
+    const updated = await completeRefund(reservation);
+    await appendHistory(updated._id, 'refund_wallet', 'بازپرداخت به کیف پول');
+    return updated;
   }
 
   const refId = extractRefId(reservation);

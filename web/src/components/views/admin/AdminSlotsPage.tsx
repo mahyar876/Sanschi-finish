@@ -9,6 +9,7 @@ import {
 import type { Pitch } from '@/lib/pitch-types';
 import { fetchAllPitches, updatePitch } from '@/lib/pitch-service';
 import { priceFa } from '@/lib/format';
+import { SlotTimeRangeTableCells } from '@/components/form/SlotTimeRangePicker';
 
 export function AdminSlotsPage() {
   const [pitches, setPitches] = useState<Pitch[]>([]);
@@ -102,28 +103,44 @@ export function AdminSlotsPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>بازه</th>
-                    <th>قیمت (تومان)</th>
+                    <th rowSpan={3}>#</th>
+                    <th colSpan={5} className="slot-time-table-head">
+                      بازهٔ زمانی
+                    </th>
+                    <th rowSpan={3}>قیمت (تومان)</th>
+                  </tr>
+                  <tr className="slot-time-table-subhead">
+                    <th colSpan={2} className="slot-time-th-group">
+                      شروع
+                    </th>
+                    <th aria-hidden />
+                    <th colSpan={2} className="slot-time-th-group">
+                      پایان
+                    </th>
+                  </tr>
+                  <tr className="slot-time-table-subhead slot-time-table-subhead--hm">
+                    <th>دقیقه</th>
+                    <th>ساعت</th>
+                    <th aria-hidden />
+                    <th>دقیقه</th>
+                    <th>ساعت</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pitch.slots.map((s, i) => (
-                    <tr key={i}>
+                    <tr key={i} className="slot-time-table-row">
                       <td>{i + 1}</td>
-                      <td>
-                        <input
-                          className="tbl-inp"
-                          value={s.time}
-                          onChange={(e) => {
-                            const slots = [...pitch.slots];
-                            slots[i] = { ...s, time: e.target.value };
-                            setPitches((prev) =>
-                              prev.map((p, pi) => (pi === idx ? { ...p, slots } : p)),
-                            );
-                          }}
-                        />
-                      </td>
+                      <SlotTimeRangeTableCells
+                        idPrefix={`slot-${pitch._id}-${i}`}
+                        value={s.time}
+                        onChange={(time) => {
+                          const slots = [...pitch.slots];
+                          slots[i] = { ...s, time };
+                          setPitches((prev) =>
+                            prev.map((p, pi) => (pi === idx ? { ...p, slots } : p)),
+                          );
+                        }}
+                      />
                       <td>
                         <input
                           className="tbl-inp"

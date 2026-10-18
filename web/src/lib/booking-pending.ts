@@ -8,6 +8,8 @@ export type PendingBooking = {
   date: string;
   name: string;
   phone: string;
+  /** رزرو موقت (قفل سانس) — مرحلهٔ تأیید */
+  reservationId?: string;
 };
 
 export function savePendingBooking(data: PendingBooking) {

@@ -8,7 +8,8 @@ const { appendHistory } = require('../services/bookingHistory');
 const {
   BOOKING_STATUS,
   PAYMENT_STATUS,
-  releaseSlotOnDaily,
+  releaseSlotForReservation,
+  releaseOwnedLock,
   legacyStatusFromBooking,
 } = require('../services/slotService');
 const { notifyCancelled } = require('../services/notify');
@@ -178,8 +179,8 @@ router.patch('/reservations/:id/status', protect, async (req, res) => {
         date: reservation.date,
       });
       if (daily) {
-        releaseSlotOnDaily(daily, reservation.slotIndex);
-        await daily.save();
+        await releaseSlotForReservation(daily._id, reservation.slotIndex, reservation._id);
+        await releaseOwnedLock(daily._id, reservation.slotIndex, reservation.user);
       }
       if (reservation.paymentStatus === PAYMENT_STATUS.SUCCESSFUL) {
         reservation.refundAmount =
@@ -204,10 +205,6 @@ router.patch('/reservations/:id/status', protect, async (req, res) => {
         reservation.cancelReason,
       );
       await notifyCancelled(reservation, 'owner');
-      if (reservation.refundAmount > 0) {
-        const { tryAutoRefund } = require('../services/refundService');
-        setImmediate(() => tryAutoRefund(reservation._id));
-      }
     } else if (status === 'paid') {
       const { confirmReservationPayment } = require('../services/paymentConfirm');
       const ref = 'OWNER-' + Date.now();
@@ -220,6 +217,23 @@ router.patch('/reservations/:id/status', protect, async (req, res) => {
     }
 
     await reservation.save();
+    if (
+      status === 'cancelled' &&
+      reservation.refundAmount > 0 &&
+      reservation.bookingStatus === BOOKING_STATUS.REFUND_PENDING
+    ) {
+      const {
+        tryAutoRefund,
+        executeRefundForReservation,
+      } = require('../services/refundService');
+      const { reservationPaidViaWallet } = require('../services/walletService');
+      const fresh = await Reservation.findById(reservation._id);
+      if (fresh && reservationPaidViaWallet(fresh)) {
+        const updated = await executeRefundForReservation(fresh);
+        return res.json({ success: true, reservation: updated, refundedToWallet: true });
+      }
+      setImmediate(() => tryAutoRefund(reservation._id));
+    }
     res.json({ success: true, reservation });
   } catch (err) {
     console.error('PATCH /owner/reservations/:id/status error:', err);
@@ -264,13 +278,7 @@ router.delete('/reservations/group/:groupId', protect, async (req, res) => {
         date: r.date,
       });
       if (daily) {
-        const slot = daily.slots.find((s) => s.slotIndex === r.slotIndex);
-        if (slot) {
-          slot.taken = false;
-          slot.takenBy = null;
-          slot.reservationId = null;
-          await daily.save();
-        }
+        await releaseSlotForReservation(daily._id, r.slotIndex, r._id);
       }
       r.status = 'cancelled';
       await r.save();
@@ -317,15 +325,7 @@ router.delete('/reservations/:id', protect, async (req, res) => {
       date: reservation.date,
     });
     if (daily) {
-      const slot = daily.slots.find(
-        (s) => s.slotIndex === reservation.slotIndex,
-      );
-      if (slot) {
-        slot.taken = false;
-        slot.takenBy = null;
-        slot.reservationId = null;
-        await daily.save();
-      }
+      await releaseSlotForReservation(daily._id, reservation.slotIndex, reservation._id);
     }
 
     reservation.status = 'cancelled';
@@ -460,15 +460,30 @@ router.patch('/pitches/:id/slots/block', protect, loadOwnedPitch, async (req, re
     if (!slot) {
       return res.status(404).json({ success: false, message: 'سانس پیدا نشد' });
     }
-    if (slot.taken || slot.reservationId) {
+    const blockResult = await DailyAvailability.updateOne(
+      {
+        _id: daily._id,
+        slots: {
+          $elemMatch: {
+            slotIndex: parseInt(slotIndex, 10),
+            taken: { $ne: true },
+            $or: [{ reservationId: null }, { reservationId: { $exists: false } }],
+          },
+        },
+      },
+      {
+        $set: {
+          'slots.$.blocked': !!blocked,
+          'slots.$.slotStatus': blocked ? 'blocked' : 'free',
+        },
+      },
+    );
+    if (!blockResult.modifiedCount) {
       return res.status(400).json({
         success: false,
         message: 'سانس رزرو شده را نمی‌توان مسدود کرد؛ ابتدا رزرو را لغو کنید',
       });
     }
-    slot.blocked = !!blocked;
-    slot.slotStatus = blocked ? 'blocked' : 'free';
-    await daily.save();
     res.json({
       success: true,
       message: blocked ? 'سانس غیرفعال شد' : 'سانس فعال شد',
@@ -538,5 +553,130 @@ router.patch('/reservations/:id/check-in', protect, async (req, res) => {
     res.status(500).json({ success: false, message: 'خطای سرور' });
   }
 });
+
+const {
+  getDashboardStats,
+  getCustomerList,
+  setCustomerTag,
+  getReportsSummary,
+  getOwnerDailySlots,
+} = require('../services/ownerInsights');
+const { createOwnerManualReservation } = require('../services/ownerManualBooking');
+const { invalidateInflightPrefix } = require('../lib/shortCache');
+
+router.get('/pitches/:id/dashboard', protect, loadOwnedPitch, async (req, res) => {
+  try {
+    const stats = await getDashboardStats(req.pitch._id);
+    if (!stats) {
+      return res.status(404).json({ success: false, message: 'زمین پیدا نشد' });
+    }
+    res.json({ success: true, stats });
+  } catch (err) {
+    console.error('GET /owner/pitches/:id/dashboard error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+router.get('/pitches/:id/daily', protect, loadOwnedPitch, async (req, res) => {
+  try {
+    const date = String(req.query.date || '').trim();
+    if (!date) {
+      return res.status(400).json({ success: false, message: 'تاریخ الزامی است' });
+    }
+    const payload = await getOwnerDailySlots(req.pitch, req.pitch._id, date);
+    res.json({ success: true, ...payload });
+  } catch (err) {
+    console.error('GET /owner/pitches/:id/daily error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+router.get('/pitches/:id/customers', protect, loadOwnedPitch, async (req, res) => {
+  try {
+    const customers = await getCustomerList(req.pitch._id);
+    res.json({ success: true, customers });
+  } catch (err) {
+    console.error('GET /owner/pitches/:id/customers error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+router.patch(
+  '/pitches/:id/customers/:phone/tag',
+  protect,
+  loadOwnedPitch,
+  async (req, res) => {
+    try {
+      const result = await setCustomerTag(req.pitch._id, req.params.phone, req.body);
+      if (!result.ok) {
+        return res.status(400).json({ success: false, message: result.message });
+      }
+      res.json({ success: true, tag: result.tag, note: result.note });
+    } catch (err) {
+      console.error('PATCH customer tag error:', err);
+      res.status(500).json({ success: false, message: 'خطای سرور' });
+    }
+  },
+);
+
+router.get('/pitches/:id/reports', protect, loadOwnedPitch, async (req, res) => {
+  try {
+    const summary = await getReportsSummary(req.pitch._id);
+    res.json({ success: true, summary });
+  } catch (err) {
+    console.error('GET /owner/pitches/:id/reports error:', err);
+    res.status(500).json({ success: false, message: 'خطای سرور' });
+  }
+});
+
+router.post(
+  '/pitches/:id/reservations/manual',
+  protect,
+  loadOwnedPitch,
+  async (req, res) => {
+    try {
+      const result = await createOwnerManualReservation(
+        req.pitch,
+        req.pitch._id,
+        req.body,
+      );
+      if (!result.ok) {
+        return res
+          .status(result.status || 400)
+          .json({ success: false, message: result.message });
+      }
+      res.status(201).json({
+        success: true,
+        message: 'رزرو تلفنی ثبت و سانس رزرو شد',
+        reservation: result.reservation,
+        customer: result.customer,
+      });
+    } catch (err) {
+      console.error('POST manual reservation error:', err);
+      res.status(500).json({ success: false, message: err.message || 'خطای سرور' });
+    }
+  },
+);
+
+router.patch(
+  '/pitches/:id/last-minute',
+  protect,
+  loadOwnedPitch,
+  async (req, res) => {
+    try {
+      if (req.body.enabled !== undefined) {
+        req.pitch.lastMinuteEnabled = !!req.body.enabled;
+      }
+      await req.pitch.save();
+      invalidateInflightPrefix(`slots:${req.pitch._id}:`);
+      res.json({
+        success: true,
+        lastMinuteEnabled: req.pitch.lastMinuteEnabled !== false,
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, message: 'خطای سرور' });
+    }
+  },
+);
 
 module.exports = router;

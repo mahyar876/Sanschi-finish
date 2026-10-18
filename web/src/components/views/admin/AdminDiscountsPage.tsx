@@ -153,7 +153,7 @@ export function AdminDiscountsPage() {
       </ActionsPanel>
       <DataSection title={`کدهای فعال و گذشته (${rows.length})`}>
         <div className="data-table-wrap">
-          <table className="data-table">
+          <table className="data-table responsive-stack">
             <thead>
               <tr>
                 <th>کد</th>
@@ -167,18 +167,18 @@ export function AdminDiscountsPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r._id}>
-                  <td>
+                  <td data-label="کد">
                     <strong>{r.code}</strong>
                   </td>
-                  <td>{numFa(r.percent)}٪</td>
-                  <td>
+                  <td data-label="٪">{numFa(r.percent)}٪</td>
+                  <td data-label="استفاده">
                     {numFa(r.usedCount)} / {numFa(r.maxUses)}
                   </td>
-                  <td>
+                  <td data-label="سقف">
                     {r.maxDiscountAmount ? priceFa(r.maxDiscountAmount) : '—'}
                   </td>
-                  <td>{r.active ? 'فعال' : 'غیرفعال'}</td>
-                  <td>
+                  <td data-label="وضعیت">{r.active ? 'فعال' : 'غیرفعال'}</td>
+                  <td className="table-actions" data-label="">
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"

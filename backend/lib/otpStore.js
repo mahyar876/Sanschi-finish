@@ -22,7 +22,18 @@ function hashOtp(phone, otp) {
   return crypto.createHmac('sha256', pepper).update(`${phone}:${otp}`).digest('hex');
 }
 
+/** کد ثابت موقت — OTP_RANDOM=true برای کد تصادفی */
+function getFixedOtpCode() {
+  if (String(process.env.OTP_RANDOM || '').toLowerCase() === 'true') {
+    return null;
+  }
+  const fixed = process.env.OTP_FIXED_CODE || '123456';
+  return /^[0-9]{6}$/.test(String(fixed)) ? String(fixed) : null;
+}
+
 function generateOtp() {
+  const fixed = getFixedOtpCode();
+  if (fixed) return fixed;
   return crypto.randomInt(100000, 1000000).toString();
 }
 
@@ -110,6 +121,11 @@ async function issueOtp(phone) {
 }
 
 async function verifyOtp(phone, otp) {
+  const fixed = getFixedOtpCode();
+  if (fixed && String(otp || '').trim() === fixed) {
+    return { ok: true };
+  }
+
   const now = Date.now();
 
   if (dbReady()) {
@@ -175,5 +191,6 @@ async function verifyOtp(phone, otp) {
 module.exports = {
   issueOtp,
   verifyOtp,
+  getFixedOtpCode,
   OTP_TTL_MS,
 };

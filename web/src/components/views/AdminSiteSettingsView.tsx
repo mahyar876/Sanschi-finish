@@ -82,6 +82,12 @@ export function AdminSiteSettingsView() {
 
   const [saving, setSaving] = useState(false);
 
+  const [supportEmail, setSupportEmail] = useState('support@sanschii.ir');
+
+  const [supportPhone, setSupportPhone] = useState('');
+
+  const [supportPhoneDisplay, setSupportPhoneDisplay] = useState('');
+
 
 
   const pitchNameById = useMemo(() => {
@@ -115,6 +121,12 @@ export function AdminSiteSettingsView() {
         setHomeVenuePreviewCount(s.homeVenuePreviewCount);
 
         setPlacements(s.homeFeaturedPlacements);
+
+        setSupportEmail(s.supportEmail || 'support@sanschii.ir');
+
+        setSupportPhone(s.supportPhone || '');
+
+        setSupportPhoneDisplay(s.supportPhoneDisplay || '');
 
         setPitches(list.filter((p) => p.isActive));
 
@@ -227,6 +239,12 @@ export function AdminSiteSettingsView() {
         homeVenuePreviewCount,
 
         homeFeaturedPlacements: placements,
+
+        supportEmail,
+
+        supportPhone,
+
+        supportPhoneDisplay,
 
       });
 
@@ -520,6 +538,46 @@ export function AdminSiteSettingsView() {
             onChange={setHomeVenuePreviewCount}
 
           />
+
+        </div>
+
+      </ActionsPanel>
+
+
+
+      <ActionsPanel title="تماس و پشتیبانی (فوتر سایت)">
+
+        <div className="form-stack" style={{ maxWidth: '24rem' }}>
+
+          <label>
+
+            ایمیل پشتیبانی
+
+            <input value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} />
+
+          </label>
+
+          <label>
+
+            تلفن (برای tel: — مثلاً +9821…)
+
+            <input value={supportPhone} onChange={(e) => setSupportPhone(e.target.value)} />
+
+          </label>
+
+          <label>
+
+            نمایش تلفن (مثلاً ۰۲۱-…)
+
+            <input
+
+              value={supportPhoneDisplay}
+
+              onChange={(e) => setSupportPhoneDisplay(e.target.value)}
+
+            />
+
+          </label>
 
         </div>
 

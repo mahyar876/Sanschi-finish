@@ -13,12 +13,13 @@ import {
   fetchWalletBalance,
   fetchWalletTransactions,
   topupWalletDemo,
+  WALLET_TOPUP_PRESETS,
   walletTxLabel,
   type WalletTransaction,
 } from '@/lib/wallet';
 import { isDemoFrontend, showDevQuickLogin } from '@/lib/demo';
 import { priceFa } from '@/lib/format';
-import { numFa } from '@/lib/jalali';
+import { numFa, toJalaliString } from '@/lib/jalali';
 
 export function PlayerWalletView() {
   const [balance, setBalance] = useState(0);
@@ -63,6 +64,14 @@ export function PlayerWalletView() {
 
   const canTopup = isDemoFrontend() || showDevQuickLogin();
 
+  function formatTxWhen(iso: string) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    const h = numFa(String(d.getHours()).padStart(2, '0'));
+    const m = numFa(String(d.getMinutes()).padStart(2, '0'));
+    return `${toJalaliString(d)} · ${h}:${m}`;
+  }
+
   return (
     <>
       <PageIntro
@@ -78,13 +87,25 @@ export function PlayerWalletView() {
         <StatCard label="تراکنش اخیر" value={tx.length} />
       </StatGrid>
 
-      {canTopup && (
+      {canTopup ? (
         <ActionsPanel
           title="شارژ (لوکال / نمایشی)"
           description="در production شارژ از درگاه بانکی یا اعتبار مدیر فعال می‌شود"
         >
           <div className="field wallet-topup-field">
             <label htmlFor="wallet-topup-amount">مبلغ (تومان)</label>
+            <div className="wallet-topup-chips">
+              {WALLET_TOPUP_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setTopupAmount(String(preset))}
+                >
+                  {priceFa(preset)}
+                </button>
+              ))}
+            </div>
             <div className="wallet-topup-inline">
               <input
                 id="wallet-topup-amount"
@@ -101,13 +122,23 @@ export function PlayerWalletView() {
           {msg && <p className="form-msg ok">{msg}</p>}
           {err && <p className="form-msg err">{err}</p>}
         </ActionsPanel>
+      ) : (
+        <ActionsPanel
+          title="شارژ کیف پول"
+          description="در محیط واقعی شارژ مستقیم از این صفحه غیرفعال است. برای افزایش اعتبار با پشتیبانی تماس بگیرید یا از درگاه بانکی در صفحه پرداخت استفاده کنید."
+        >
+          <Link href="/player/support" className="btn btn-secondary btn-sm">
+            تماس با پشتیبانی
+          </Link>
+        </ActionsPanel>
       )}
 
       <DataSection title="گردش حساب">
         <div className="data-table-wrap">
-          <table className="data-table">
+          <table className="data-table responsive-stack">
             <thead>
               <tr>
+                <th>تاریخ</th>
                 <th>نوع</th>
                 <th>مبلغ</th>
                 <th>مانده</th>
@@ -117,7 +148,7 @@ export function PlayerWalletView() {
             <tbody>
               {tx.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="muted-sm">
+                  <td colSpan={5} className="muted-sm">
                     هنوز تراکنشی نیست —{' '}
                     <Link href="/reserve">رزرو کنید</Link> یا کیف را شارژ کنید.
                   </td>
@@ -125,13 +156,16 @@ export function PlayerWalletView() {
               )}
               {tx.map((row) => (
                 <tr key={row._id}>
-                  <td>{walletTxLabel(row.type)}</td>
-                  <td>
+                  <td className="muted-sm" data-label="تاریخ">
+                    {formatTxWhen(row.createdAt)}
+                  </td>
+                  <td data-label="نوع">{walletTxLabel(row.type)}</td>
+                  <td data-label="مبلغ">
                     {row.type === 'payment' ? '−' : '+'}
                     {priceFa(row.amount)}
                   </td>
-                  <td>{priceFa(row.balanceAfter)}</td>
-                  <td className="muted-sm">
+                  <td data-label="مانده">{priceFa(row.balanceAfter)}</td>
+                  <td className="muted-sm" data-label="توضیح">
                     {row.reservation?.code
                       ? `رزرو ${row.reservation.code}`
                       : row.note || '—'}

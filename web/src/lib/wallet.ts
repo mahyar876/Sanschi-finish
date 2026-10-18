@@ -106,3 +106,23 @@ export function walletTxLabel(type: string): string {
   };
   return map[type] || type;
 }
+
+export async function adminCreditWallet(input: {
+  phone?: string;
+  userId?: string;
+  amount: number;
+  note?: string;
+}): Promise<{ balance: number; userId: string }> {
+  const data = await apiFetch<{
+    success: boolean;
+    balance: number;
+    userId: string;
+    message?: string;
+  }>('/wallet/admin/credit', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return { balance: data.balance, userId: data.userId };
+}
+
+export const WALLET_TOPUP_PRESETS = [100_000, 500_000, 1_000_000, 2_000_000] as const;
