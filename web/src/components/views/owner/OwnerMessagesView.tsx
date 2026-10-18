@@ -51,7 +51,7 @@ export function OwnerMessagesView() {
       .then((d) => {
         if (d.success) setItems(d.notifications);
       })
-      .catch(() => setItems(DEMO_MESSAGES));
+      .catch(() => setItems([]));
   }, []);
 
   return (
