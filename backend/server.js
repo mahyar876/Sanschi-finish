@@ -12,6 +12,7 @@ const { apiLimiter } = require('./lib/rateLimits');
 dotenv.config();
 
 const crypto = require('crypto');
+const fs = require('fs');
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -68,8 +69,22 @@ app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '4mb' }));
 app.use('/api', apiLimiter);
 
 const path = require('path');
+const legacyFront = path.join(__dirname, '../frontend/pages');
 if (!isProd) {
-  app.use(express.static(path.join(__dirname, '../frontend/pages')));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    const legacyRoot = path.join(legacyFront, 'index.html');
+    if (
+      req.path === '/index.html' ||
+      (req.path.endsWith('.html') &&
+        fs.existsSync(path.join(legacyFront, req.path.replace(/^\//, ''))))
+    ) {
+      const target = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(302, target + (req.path === '/index.html' ? '/' : req.path));
+    }
+    next();
+  });
+  app.use(express.static(legacyFront));
   app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
 }
 

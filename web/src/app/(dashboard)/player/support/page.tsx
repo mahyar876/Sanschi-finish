@@ -1,5 +1,10 @@
-import { PlayerSupportView } from '@/components/views/player/PlayerSupportView';
+import { SupportTicketsView } from '@/components/views/SupportTicketsView';
 
 export default function PlayerSupportPage() {
-  return <PlayerSupportView />;
+  return (
+    <SupportTicketsView
+      title="پشتیبانی"
+      description="سؤال دربارهٔ رزرو، پرداخت یا اختلاف با مجموعه — تیکت بزنید."
+    />
+  );
 }

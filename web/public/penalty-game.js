@@ -314,7 +314,9 @@ function shoot(z) {
 
   /* دایو همیشه به zone مقصد همان جهت (هم‌خوان با انیمیشن توپ) */
   setTimeout(() => {
-    animKeeper(action.dir, DIR_TARGET_ZONE[action.dir] ?? z);
+    const diveDir = action.saved ? ZONE_KEEPER[z] : action.dir;
+    const diveZone = action.saved ? z : (DIR_TARGET_ZONE[action.dir] ?? z);
+    animKeeper(diveDir, diveZone);
   }, reactMs);
 
   /* نتیجه هم‌زمان با رسیدن توپ */

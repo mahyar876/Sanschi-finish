@@ -226,6 +226,13 @@
         }
       }
 
+      /* دروازه و zoneها همیشه LTR — هم‌خوان با مختصات بازی */
+      .goal,
+      .keeper-wrap,
+      .zone-hint {
+        direction: ltr;
+      }
+
       /* shot zones — invisible grid over goal */
       .shot-zones {
         position: absolute;

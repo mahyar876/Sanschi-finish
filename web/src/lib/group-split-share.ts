@@ -427,10 +427,8 @@ export function buildShareMessage(payload: GroupSplitSharePayload, link: string)
   if (payload.bookerName) lines.push(`👤 رزروکننده: ${payload.bookerName}`);
   if (payload.reservationCode) lines.push(`🎫 کد رزرو: ${payload.reservationCode}`);
   const pay = payload.pay;
-  if (pay?.accountName) lines.push(`🏦 به نام: ${pay.accountName}`);
-  if (pay?.cardNumber) lines.push(`💳 کارت: ${formatCardDisplay(pay.cardNumber)}`);
-  if (pay?.sheba) lines.push(`🔢 شبا: ${pay.sheba}`);
-  if (pay?.note) lines.push(`📝 ${pay.note}`);
+  if (pay?.note?.trim()) lines.push(`📝 ${pay.note.trim()}`);
+  lines.push('💡 پرداخت سانس فقط از سانس‌چی — این سهم فقط برای هماهنگی تیم است.');
   const list = payload.checklist;
   if (list?.length) {
     const { done, total } = checklistProgress(list);

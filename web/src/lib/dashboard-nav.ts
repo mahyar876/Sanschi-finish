@@ -206,6 +206,8 @@ export const OWNER_NAV: NavGroup[] = [
 
       { href: '/owner/messages', label: 'پیام‌ها و اعلان‌ها' },
 
+      { href: '/owner/support', label: 'پشتیبانی / تیکت' },
+
       { href: '/owner/profile', label: 'پروفایل و تنظیمات' },
 
     ],
@@ -358,6 +360,8 @@ export function breadcrumbLabel(pathname: string): string {
     '/owner/reports': 'گزارش‌ها',
 
     '/owner/messages': 'پیام‌ها',
+
+    '/owner/support': 'پشتیبانی',
 
     '/owner/profile': 'پروفایل',
 

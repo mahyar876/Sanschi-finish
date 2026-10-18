@@ -19,14 +19,11 @@ import {
   buildShareMessage,
   buildShareUrl,
   checklistProgress,
-  formatCardDisplay,
   loadDraftForReservation,
   loadStoredTeamSplitDraft,
   loadStoredPayInfo,
   mergeChecklistPreferSettled,
   newChecklistItem,
-  normalizeCardInput,
-  normalizeShebaInput,
   perPersonShare,
   saveStoredTeamSplitDraft,
   saveStoredPayInfo,
@@ -103,7 +100,6 @@ export const GroupSplitCalculator = forwardRef<GroupSplitCalculatorHandle, Props
     if (draft.players != null) return draft.players;
     return Math.min(22, Math.max(2, defaultPlayers));
   });
-  const [payOpen, setPayOpen] = useState(true);
   const [payInfo, setPayInfo] = useState<GroupPayInfo>(() =>
     mode === 'readonly' && payInfoProp ? payInfoProp : loadStoredPayInfo(),
   );
@@ -119,8 +115,7 @@ export const GroupSplitCalculator = forwardRef<GroupSplitCalculatorHandle, Props
   const flushRemoteSave = useCallback(async (): Promise<boolean> => {
     if (!reservationId || mode !== 'edit') return false;
     const withNames = checklist.filter((c) => c.name.trim());
-    const hasPay =
-      payInfo.cardNumber || payInfo.sheba || payInfo.accountName || payInfo.note;
+    const hasPay = Boolean(payInfo.note?.trim());
     try {
       await saveTeamSplitForReservation(reservationId, {
         players,
@@ -245,8 +240,7 @@ export const GroupSplitCalculator = forwardRef<GroupSplitCalculatorHandle, Props
 
   const payload = useMemo((): GroupSplitSharePayload => {
     const withNames = checklist.filter((c) => c.name.trim());
-    const hasPay =
-      payInfo.cardNumber || payInfo.sheba || payInfo.accountName || payInfo.note;
+    const hasPay = Boolean(payInfo.note?.trim());
     return {
       pitchName,
       date,
@@ -401,77 +395,17 @@ export const GroupSplitCalculator = forwardRef<GroupSplitCalculatorHandle, Props
             ))}
           </div>
 
-          <div className="group-split-pay">
-            <button
-              type="button"
-              className="group-split-pay__toggle"
-              aria-expanded={payOpen}
-              onClick={() => setPayOpen((o) => !o)}
-            >
-              <span>کارت و یادداشت برای گروه</span>
-              <span className="group-split-pay__chev">{payOpen ? '▾' : '◂'}</span>
-            </button>
-            {payOpen ? (
-              <div className="group-split-pay__fields">
-                <p className="muted-sm group-split-pay__hint">
-                  در «کپی متن» و لینک اشتراک می‌آید — برای واریز سهم به رزروکننده.
-                </p>
-                <div className="field">
-                  <label htmlFor="split-account-name">به نام</label>
-                  <input
-                    id="split-account-name"
-                    value={payInfo.accountName}
-                    onChange={(e) =>
-                      setPayInfo((p) => ({ ...p, accountName: e.target.value }))
-                    }
-                    placeholder={bookerName || 'نام صاحب کارت'}
-                    autoComplete="name"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="split-card">شماره کارت</label>
-                  <input
-                    id="split-card"
-                    value={formatCardDisplay(payInfo.cardNumber)}
-                    onChange={(e) =>
-                      setPayInfo((p) => ({
-                        ...p,
-                        cardNumber: normalizeCardInput(e.target.value),
-                      }))
-                    }
-                    placeholder="۶۰۳۷ …"
-                    inputMode="numeric"
-                    dir="ltr"
-                    className="group-split-ltr"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="split-sheba">شماره شبا (اختیاری)</label>
-                  <input
-                    id="split-sheba"
-                    value={payInfo.sheba}
-                    onChange={(e) =>
-                      setPayInfo((p) => ({
-                        ...p,
-                        sheba: normalizeShebaInput(e.target.value),
-                      }))
-                    }
-                    placeholder="IR…"
-                    dir="ltr"
-                    className="group-split-ltr"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="split-note">یادداشت (اختیاری)</label>
-                  <input
-                    id="split-note"
-                    value={payInfo.note}
-                    onChange={(e) => setPayInfo((p) => ({ ...p, note: e.target.value }))}
-                    placeholder="مثلاً تا شب بزنید"
-                  />
-                </div>
-              </div>
-            ) : null}
+          <div className="field group-split-note-field">
+            <label htmlFor="split-note">یادداشت برای گروه (اختیاری)</label>
+            <input
+              id="split-note"
+              value={payInfo.note}
+              onChange={(e) => setPayInfo((p) => ({ ...p, note: e.target.value }))}
+              placeholder="مثلاً ساعت ۱۹ در ورودی"
+            />
+            <p className="muted-sm group-split-pay__hint">
+              پرداخت سانس از سانس‌چی است — این فقط برای هماهنگی بین خود تیم است.
+            </p>
           </div>
 
           <TeamChecklist
@@ -548,38 +482,12 @@ export const GroupSplitCalculator = forwardRef<GroupSplitCalculatorHandle, Props
             ) : null}
           </dl>
 
-          {(payInfo.accountName || payInfo.cardNumber || payInfo.sheba || payInfo.note) && (
+          {payInfo.note?.trim() ? (
             <div className="group-split-pay-readonly">
-              <h3 className="h6">واریز سهم به رزروکننده</h3>
-              {payInfo.accountName ? (
-                <CopyRow
-                  label="به نام"
-                  value={payInfo.accountName}
-                  copied={copiedField === 'account'}
-                  onCopy={() => void copyText(payInfo.accountName, 'account')}
-                />
-              ) : null}
-              {payInfo.cardNumber ? (
-                <CopyRow
-                  label="کارت"
-                  value={formatCardDisplay(payInfo.cardNumber)}
-                  copied={copiedField === 'card'}
-                  onCopy={() => void copyText(payInfo.cardNumber, 'card')}
-                  ltr
-                />
-              ) : null}
-              {payInfo.sheba ? (
-                <CopyRow
-                  label="شبا"
-                  value={payInfo.sheba}
-                  copied={copiedField === 'sheba'}
-                  onCopy={() => void copyText(payInfo.sheba, 'sheba')}
-                  ltr
-                />
-              ) : null}
-              {payInfo.note ? <p className="muted-sm group-split-note">{payInfo.note}</p> : null}
+              <h3 className="h6">یادداشت گروه</h3>
+              <p className="muted-sm group-split-note">{payInfo.note}</p>
             </div>
-          )}
+          ) : null}
 
           {checklist.length > 0 ? (
             <TeamChecklist
@@ -736,30 +644,6 @@ function TeamChecklist({
           </button>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function CopyRow({
-  label,
-  value,
-  copied,
-  onCopy,
-  ltr,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  onCopy: () => void;
-  ltr?: boolean;
-}) {
-  return (
-    <div className="group-split-copy-row">
-      <span className="group-split-copy-row__label">{label}</span>
-      <span className={`group-split-copy-row__value${ltr ? ' group-split-ltr' : ''}`}>{value}</span>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={onCopy}>
-        {copied ? '✓' : 'کپی'}
-      </button>
     </div>
   );
 }

@@ -22,7 +22,15 @@ const CATEGORIES = [
   { id: 'dispute', label: 'اختلاف / شکایت' },
 ] as const;
 
-export function PlayerSupportView() {
+type Props = {
+  title?: string;
+  description?: string;
+};
+
+export function SupportTicketsView({
+  title = 'پشتیبانی',
+  description = 'سؤال دربارهٔ رزرو، پرداخت یا اختلاف — تیکت بزنید.',
+}: Props) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -65,10 +73,7 @@ export function PlayerSupportView() {
 
   return (
     <>
-      <PageIntro
-        title="پشتیبانی"
-        description="سؤال دربارهٔ رزرو، پرداخت یا اختلاف با مجموعه — تیکت بزنید."
-      />
+      <PageIntro title={title} description={description} />
       <DataSection title="تیکت جدید">
         <form className="form-stack" onSubmit={submit}>
           <label>
