@@ -37,30 +37,11 @@ function reserveHref(v: CatalogVenue): string {
 }
 
 function buildGalleryPopupHtml(v: CatalogVenue): string {
-  const featuredBadge = v.featured
-    ? '<span class="gallery-map-popup-tag">پیشنهادی</span>'
-    : '';
-  const addressLine = `${v.address}${v.city ? `، ${v.city}` : ''}`;
+  const cat = escapeHtml(v.category);
   return `
-    <div class="gallery-map-popup" dir="rtl" lang="fa">
-      <div class="gallery-map-popup-head">
-        <strong class="gallery-map-popup-title">${escapeHtml(v.name)}</strong>
-        ${featuredBadge}
-      </div>
-      <p class="gallery-map-popup-meta">
-        <span class="gallery-map-popup-cat gallery-map-popup-cat--${escapeHtml(v.category)}">${escapeHtml(CATEGORY_LABEL[v.category])}</span>
-        <span class="gallery-map-popup-dot" aria-hidden="true">·</span>
-        ${escapeHtml(pitchSizeLabel(v.size))}
-      </p>
-      <p class="gallery-map-popup-address">${escapeHtml(addressLine)}</p>
-      <div class="gallery-map-popup-foot">
-        <p class="gallery-map-popup-price">
-          <span class="gallery-map-popup-price-label">از</span>
-          <strong>${escapeHtml(priceFa(v.priceFrom))}</strong>
-          <span class="gallery-map-popup-price-unit">تومان</span>
-        </p>
-        <a class="gallery-map-popup-cta" href="${escapeHtml(reserveHref(v))}">رزرو این مجموعه</a>
-      </div>
+    <div class="gallery-map-popup gallery-map-popup--pin gallery-map-popup--${cat}" dir="rtl" lang="fa">
+      <p class="gallery-map-popup-title">${escapeHtml(v.name)}</p>
+      <a class="gallery-map-popup-cta" href="${escapeHtml(reserveHref(v))}"><span class="gallery-map-popup-cta-text">رزرو</span></a>
     </div>`;
 }
 
@@ -216,12 +197,12 @@ export function GalleryVenuesMap({
         icon: galleryMarkerIcon(L, v.category, v.featured, isSelected),
       });
       marker.bindPopup(buildGalleryPopupHtml(v), {
-        className: 'gallery-leaflet-popup',
-        minWidth: 260,
-        maxWidth: 288,
+        className: `gallery-leaflet-popup gallery-leaflet-popup--pin gallery-leaflet-popup--${v.category}`,
+        minWidth: 132,
+        maxWidth: 172,
         autoPan: true,
         keepInView: true,
-        autoPanPadding: [28, 28],
+        autoPanPadding: [32, 32],
         offset: [0, 0],
       });
       marker.on('click', () => {
@@ -291,10 +272,26 @@ export function GalleryVenuesMap({
         </h2>
         <p className="muted-sm gallery-map-sub">
           {mappable.length > 0
-            ? `${mappable.length} مجموعه روی نقشه — روی هر نشانگر بزنید`
+            ? `${mappable.length} مجموعه روی نقشه — روی نشانگر بزنید`
             : 'هیچ مجموعه‌ای با موقعیت ثبت‌شده در این فیلتر نیست'}
           {missingCount > 0 ? ` (${missingCount} بدون مختصات)` : ''}
         </p>
+        {mappable.length > 0 ? (
+          <ul className="gallery-map-legend" aria-label="راهنمای رنگ نشانگرها">
+            <li className="gallery-map-legend-item">
+              <span className="gallery-map-legend-dot gallery-map-legend-dot--grass" aria-hidden />
+              <span className="gallery-map-legend-label gallery-map-legend-label--grass">چمن</span>
+            </li>
+            <li className="gallery-map-legend-item">
+              <span className="gallery-map-legend-dot gallery-map-legend-dot--volleyball" aria-hidden />
+              <span className="gallery-map-legend-label gallery-map-legend-label--volleyball">سالن</span>
+            </li>
+            <li className="gallery-map-legend-item">
+              <span className="gallery-map-legend-dot gallery-map-legend-dot--multi" aria-hidden />
+              <span className="gallery-map-legend-label gallery-map-legend-label--multi">چندمنظوره</span>
+            </li>
+          </ul>
+        ) : null}
       </div>
 
       <div className={compact ? 'gallery-map-layout gallery-map-layout--compact' : 'gallery-map-layout'}>

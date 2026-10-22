@@ -13,18 +13,14 @@ import {
 import { VenueCard } from './VenueCard';
 import { numFa } from '@/lib/jalali';
 import {
-  GalleryFilterSidebar,
+  GalleryAdvancedFilters,
   EMPTY_GALLERY_SIDEBAR_FILTERS,
   type GallerySidebarFilters,
 } from '@/components/GalleryFilterSidebar';
 import {
-  SLOT_PERIOD_OPTIONS,
   catalogMatchesMinCapacity,
   catalogMatchesSlotPeriods,
-  type SlotPeriodFilter,
 } from '@/lib/gallery-filters';
-import { parseCoords } from '@/lib/google-maps';
-
 type Filter = 'all' | VenueCategory;
 
 const FILTERS: { id: Filter; label: string }[] = [
@@ -73,12 +69,25 @@ export function GalleryGrid() {
   );
   const [view, setView] = useState<GalleryView>('grid');
   const [mapSelectedPitchId, setMapSelectedPitchId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  /** نقشهٔ جمع‌وجور فقط دسکتاپ — روی موبایل لیست اول، نقشه با تب «نقشه» */
+  const [allowInlineMap, setAllowInlineMap] = useState(false);
 
   useEffect(() => {
-    void fetchCatalog().then(({ items: list, live: fromApi }) => {
-      setItems(list);
-      setLive(fromApi);
-    });
+    void fetchCatalog()
+      .then(({ items: list, live: fromApi }) => {
+        setItems(list);
+        setLive(fromApi);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const sync = () => setAllowInlineMap(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   const list = useMemo(() => {
@@ -104,21 +113,19 @@ export function GalleryGrid() {
     return rows;
   }, [items, filter, zone, sort, sidebarFilters]);
 
-  const mappableCount = useMemo(
-    () => list.filter((v) => parseCoords(v.lat, v.lng) !== null).length,
-    [list],
-  );
+  const showMap = items.length > 0;
+  const showMapPanel =
+    showMap && (view === 'map' || (view === 'grid' && allowInlineMap));
 
   useEffect(() => {
-    if (view !== 'map') return;
-    if (!list.length) {
+    if (!showMapPanel || !list.length) {
       setMapSelectedPitchId(null);
       return;
     }
     if (!mapSelectedPitchId || !list.some((v) => v.pitchId === mapSelectedPitchId)) {
       setMapSelectedPitchId(list[0]!.pitchId);
     }
-  }, [view, list, mapSelectedPitchId]);
+  }, [showMapPanel, list, mapSelectedPitchId]);
 
   return (
     <>
@@ -129,138 +136,92 @@ export function GalleryGrid() {
       )}
 
       <div className="gallery-layout">
-        <div className="gallery-filters-top">
-          <div className="gallery-filters">
-            <div className="gallery-filter-block">
-              <span className="gallery-filter-label">نمایش</span>
-              <div className="chips chip-scroll-wrap" role="tablist" aria-label="نمایش گالری">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={view === 'grid'}
-                  className={view === 'grid' ? 'chip active' : 'chip'}
-                  onClick={() => setView('grid')}
-                >
-                  لیست کارت‌ها
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={view === 'map'}
-                  className={view === 'map' ? 'chip active' : 'chip'}
-                  onClick={() => setView('map')}
-                >
-                  نقشه تهران
-                </button>
-              </div>
-            </div>
-
-            <div className="gallery-filter-block">
-              <span className="gallery-filter-label">نوع مجموعه</span>
-              <div className="chips chip-scroll-wrap" role="tablist" aria-label="فیلتر نوع زمین">
-                {FILTERS.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={filter === f.id}
-                    className={filter === f.id ? 'chip active' : 'chip'}
-                    onClick={() => setFilter(f.id)}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="gallery-filter-block">
-              <span className="gallery-filter-label">محدوده تهران</span>
-              <div className="chips chip-scroll-wrap" role="tablist" aria-label="فیلتر محدوده">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={zone === 'all'}
-                  className={zone === 'all' ? 'chip active' : 'chip'}
-                  onClick={() => setZone('all')}
-                >
-                  همه
-                </button>
-                {TEHRAN_ZONE_ORDER.map((z) => (
-                  <button
-                    key={z}
-                    type="button"
-                    role="tab"
-                    aria-selected={zone === z}
-                    className={zone === z ? 'chip active' : 'chip'}
-                    onClick={() => setZone(z)}
-                  >
-                    {TEHRAN_ZONE_LABEL[z]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="gallery-filter-block gallery-filter-block--sort">
-              <span className="gallery-filter-label">مرتب‌سازی</span>
-              <div className="chips chip-scroll-wrap" role="tablist" aria-label="مرتب‌سازی">
-                {SORT_OPTIONS.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={sort === s.id}
-                    className={sort === s.id ? 'chip active' : 'chip'}
-                    onClick={() => setSort(s.id)}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="gallery-filter-block">
-              <span className="gallery-filter-label">ساعت سانس</span>
-              <div
-                className="chips chip-scroll-wrap"
-                role="group"
-                aria-label="فیلتر ساعت سانس"
+        <div className="gallery-toolbar">
+          <div className="gallery-toolbar-head">
+            <div className="gallery-view-toggle" role="tablist" aria-label="نمایش گالری">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'grid'}
+                className={view === 'grid' ? 'is-active' : undefined}
+                onClick={() => setView('grid')}
               >
-                {SLOT_PERIOD_OPTIONS.map((p) => {
-                  const active = sidebarFilters.slotPeriods.includes(p.id);
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      aria-pressed={active}
-                      className={active ? 'chip active' : 'chip'}
-                      onClick={() => {
-                        const set = new Set(sidebarFilters.slotPeriods);
-                        if (set.has(p.id)) set.delete(p.id);
-                        else set.add(p.id);
-                        setSidebarFilters({
-                          ...sidebarFilters,
-                          slotPeriods: [...set] as SlotPeriodFilter[],
-                        });
-                      }}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
+                لیست
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'map'}
+                className={view === 'map' ? 'is-active' : undefined}
+                onClick={() => setView('map')}
+              >
+                نقشه
+              </button>
             </div>
+          </div>
 
-            <GalleryFilterSidebar
-              filters={sidebarFilters}
-              onChange={setSidebarFilters}
-            />
+          <div className="gallery-select-grid">
+            <label className="gallery-select-field">
+              <span className="gallery-select-label">نوع</span>
+              <select
+                className="gallery-select"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value as Filter)}
+                aria-label="نوع مجموعه"
+              >
+                {FILTERS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="gallery-select-field">
+              <span className="gallery-select-label">محدوده</span>
+              <select
+                className="gallery-select"
+                value={zone}
+                onChange={(e) => setZone(e.target.value as TehranZone | 'all')}
+                aria-label="محدوده تهران"
+              >
+                <option value="all">همهٔ تهران</option>
+                {TEHRAN_ZONE_ORDER.map((z) => (
+                  <option key={z} value={z}>
+                    {TEHRAN_ZONE_LABEL[z]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="gallery-select-field">
+              <span className="gallery-select-label">مرتب‌سازی</span>
+              <select
+                className="gallery-select"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortId)}
+                aria-label="مرتب‌سازی"
+              >
+                {SORT_OPTIONS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <GalleryAdvancedFilters filters={sidebarFilters} onChange={setSidebarFilters} />
           </div>
         </div>
 
-        <p className="result-count">
-          {numFa(list.length)} مورد در تهران — رزرو آنلاین چمن، فوتسال و والیبال
+        <p className="result-count" role="status">
+          {loading
+            ? 'در حال بارگذاری زمین‌ها…'
+            : `${numFa(list.length)} مورد در تهران — رزرو آنلاین چمن، فوتسال و والیبال`}
         </p>
-        {list.length === 0 ? (
+        {loading ? (
+          <p className="muted-sm gallery-loading-hint">لطفاً چند لحظه صبر کنید.</p>
+        ) : list.length === 0 ? (
           <div className="panel empty-state" role="status">
             {items.length === 0 && live ? (
               <>
@@ -277,14 +238,21 @@ export function GalleryGrid() {
             )}
           </div>
         ) : view === 'map' ? (
-          <GalleryVenuesMap
-            venues={list}
-            selectedPitchId={mapSelectedPitchId}
-            onSelectPitchId={setMapSelectedPitchId}
-          />
+          showMapPanel ? (
+            <GalleryVenuesMap
+              venues={list}
+              selectedPitchId={mapSelectedPitchId}
+              onSelectPitchId={setMapSelectedPitchId}
+            />
+          ) : null
         ) : (
           <>
-            {mappableCount > 0 ? (
+            <div className="venue-grid gallery-venue-grid">
+              {list.map((v) => (
+                <VenueCard key={v.pitchId} venue={v} />
+              ))}
+            </div>
+            {showMapPanel ? (
               <GalleryVenuesMap
                 venues={list}
                 compact
@@ -292,11 +260,6 @@ export function GalleryGrid() {
                 onSelectPitchId={setMapSelectedPitchId}
               />
             ) : null}
-            <div className="venue-grid">
-              {list.map((v) => (
-                <VenueCard key={v.pitchId} venue={v} />
-              ))}
-            </div>
           </>
         )}
       </div>
