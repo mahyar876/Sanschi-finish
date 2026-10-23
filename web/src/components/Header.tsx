@@ -37,6 +37,21 @@ export function Header() {
     };
   }, [menuOpen]);
 
+  function scrollToTopForMenu() {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
+  function toggleMobileMenu() {
+    setMenuOpen((open) => {
+      if (open) return false;
+      scrollToTopForMenu();
+      requestAnimationFrame(scrollToTopForMenu);
+      return true;
+    });
+  }
+
   const isHome = pathname === '/';
 
   return (
@@ -78,7 +93,7 @@ export function Header() {
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
             aria-label={menuOpen ? 'بستن منو' : 'باز کردن منو'}
-            onClick={() => setMenuOpen((o) => !o)}
+            onClick={toggleMobileMenu}
           >
             <span aria-hidden>{menuOpen ? '✕' : '☰'}</span>
           </button>
