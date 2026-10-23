@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Vazirmatn } from 'next/font/google';
+import { ScrollToTopOnNavigate } from '@/components/ScrollToTopOnNavigate';
 import './globals.css';
 
 const vazir = Vazirmatn({
@@ -55,7 +56,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fa" dir="rtl">
-      <body className={vazir.variable}>{children}</body>
+      <body className={vazir.variable}>
+        <ScrollToTopOnNavigate />
+        {children}
+      </body>
     </html>
   );
 }

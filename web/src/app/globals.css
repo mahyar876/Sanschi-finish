@@ -961,6 +961,14 @@ img {
   padding: 0.15rem 0.35rem;
 }
 
+.venue-grid-home-preview .flash-deal-cta {
+  min-width: 4.5rem;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.85rem;
+  font-size: clamp(0.82rem, 1.2vw + 0.35rem, 0.92rem);
+  font-weight: 700;
+}
+
 @media (max-width: 639px) {
   .venue-grid-home-preview .venue-card-address,
   .venue-grid-home-preview .venue-tags {
@@ -6849,8 +6857,10 @@ td[data-label='سانس'] {
   }
 
   .venue-grid-home-preview .flash-deal-cta {
-    padding: 0.35rem 0.45rem;
-    font-size: 0.72rem;
+    min-width: 3.85rem;
+    min-height: 2.2rem;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.84rem;
   }
 
   .section-more-actions .btn {
